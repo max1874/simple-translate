@@ -33,8 +33,6 @@ var SERVICES = [
     reasoning: 'none',
     keyPage: 'https://openrouter.ai/keys',
     needsKey: true,
-    color: '#6467f2',
-    monogram: 'OR',
   },
   {
     id: 'openai',
@@ -44,8 +42,6 @@ var SERVICES = [
     reasoning: 'none',
     keyPage: 'https://platform.openai.com/api-keys',
     needsKey: true,
-    color: '#10a37f',
-    monogram: 'AI',
   },
   {
     id: 'deepseek',
@@ -55,8 +51,6 @@ var SERVICES = [
     reasoning: 'default',
     keyPage: 'https://platform.deepseek.com/api_keys',
     needsKey: true,
-    color: '#4d6bfe',
-    monogram: 'DS',
   },
   {
     id: 'ollama',
@@ -66,8 +60,6 @@ var SERVICES = [
     reasoning: 'default',
     keyPage: null,
     needsKey: false,
-    color: '#555555',
-    monogram: 'OL',
   },
   {
     id: 'custom',
@@ -77,8 +69,6 @@ var SERVICES = [
     reasoning: 'default',
     keyPage: null,
     needsKey: false,
-    color: '#8e8e93',
-    monogram: '…',
   },
 ];
 

@@ -11,6 +11,7 @@
   --badge: rgba(0, 122, 255, 0.14);
   --danger: #d70015;
   --ok: #248a3d;
+  --icon-tile: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +27,7 @@
     --badge: rgba(10, 132, 255, 0.24);
     --danger: #ff453a;
     --ok: #30d158;
+    --icon-tile: #3a3a3c;
   }
 }
 
@@ -266,17 +268,21 @@ summary {
   border: 5px solid var(--accent);
 }
 
-.monogram {
+.service-icon {
   flex: none;
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  background: var(--icon-tile);
+  box-shadow: inset 0 0 0 0.5px var(--divider);
+  color: var(--text);
+}
+
+.service-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .service-text {

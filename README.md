@@ -53,4 +53,4 @@ Simple Translate is a minimal Chrome extension that translates the page you are 
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE)。设置页里各服务的图标来自 [lobe-icons](https://github.com/lobehub/lobe-icons)（MIT），图标本身归各公司所有。

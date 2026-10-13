@@ -18,6 +18,19 @@ loadConfig().then((loaded) => {
 });
 
 const current = () => serviceConfig(config);
+
+function serviceIcon(id) {
+  const icon = SERVICE_ICONS[id];
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', icon.path);
+  path.setAttribute('fill', icon.color ?? 'currentColor');
+  if (!icon.color) path.setAttribute('fill-rule', 'evenodd');
+  svg.append(path);
+  return svg;
+}
 const displayName = (service) => service.name || t('custom');
 
 function save() {
@@ -43,10 +56,8 @@ function render() {
     row.className = 'service';
     row.setAttribute('role', 'radio');
     row.setAttribute('aria-checked', String(preset.id === config.service));
-    row.innerHTML = '<span class="check"></span><span class="monogram"></span><span class="service-text"><div class="service-name"></div><div class="service-detail"></div></span>';
-    const monogram = row.querySelector('.monogram');
-    monogram.textContent = preset.monogram;
-    monogram.style.background = preset.color;
+    row.innerHTML = '<span class="check"></span><span class="service-icon"></span><span class="service-text"><div class="service-name"></div><div class="service-detail"></div></span>';
+    row.querySelector('.service-icon').append(serviceIcon(preset.id));
     row.querySelector('.service-name').textContent = displayName(service);
     row.querySelector('.service-detail').textContent = preset.id === 'custom' && !service.baseUrl
       ? t('customHint')
