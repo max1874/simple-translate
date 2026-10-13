@@ -2,7 +2,7 @@
 
 一个极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面。
 
-- **一键开关**：点工具栏上的「译」图标，或按 <kbd>⌥T</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>T</kbd>）开始翻译；再按一次，页面恢复原样。
+- **一键开关**：点工具栏上的「译」图标，或按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>）开始翻译；再按一次，页面恢复原样。
 - **只翻你在看的**：屏幕上的段落先翻，往下滚再继续；每段翻完立刻显示，不等整批。
 - **用你自己的模型和 key**：OpenRouter、OpenAI、DeepSeek、Ollama，或任何兼容 OpenAI 接口的服务。
 - **你不点，它就不动**：不在每个网页常驻脚本，不要「读取所有网站」的权限，没有统计上报，没有我们自己的服务器。网页文字只发给你选的那个服务。
@@ -25,7 +25,7 @@
 
 ## 使用
 
-打开任意网页，点「译」图标或按快捷键。快捷键显示「未设置」，通常是这个组合键已经被别的扩展占用（比如沉浸式翻译占了 <kbd>⌥A</kbd>），可以在设置页点「修改」换一个，也可以直接点图标。
+打开任意网页，点「译」图标或按快捷键。Chrome 只在安装扩展时、且这个组合键没被占用时才分配快捷键，被占用也不提示。设置页里快捷键显示「未设置」，多半是别的扩展占着 <kbd>⌥A</kbd>（沉浸式翻译默认就用它）：先在 `chrome://extensions/shortcuts` 里清掉那个扩展的 <kbd>⌥A</kbd>，再给简单翻译设上；设置页的「修改」直接打开这个页面。
 
 `chrome://` 页面和 Chrome 网上应用店的页面不允许扩展运行，在那里点图标不会有反应。
 
@@ -49,7 +49,7 @@
 
 ## English
 
-Simple Translate is a minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>T</kbd> (<kbd>⌥T</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
+Simple Translate is a minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
 
 ## License
 
