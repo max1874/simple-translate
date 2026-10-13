@@ -8,37 +8,81 @@
 </head>
 <body>
   <main>
-    <h1 data-i18n="optionsTitle"></h1>
-    <form id="form">
-      <label>
-        <span data-i18n="baseUrl"></span>
-        <input name="baseUrl" type="url" required>
-        <small data-i18n="baseUrlHint"></small>
-      </label>
-      <label>
+    <header class="title">
+      <img src="icons/48.png" alt="" width="32" height="32">
+      <h1 data-i18n="extName"></h1>
+    </header>
+
+    <h2 data-i18n="sectionService"></h2>
+    <div class="group" id="services" role="radiogroup"></div>
+    <p class="note" data-i18n="serviceNote"></p>
+
+    <h2 id="service-title"></h2>
+    <div class="group">
+      <label class="row">
         <span data-i18n="apiKey"></span>
-        <input name="apiKey" type="password" autocomplete="off">
-        <small data-i18n="apiKeyHint"></small>
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false">
       </label>
-      <label>
-        <span data-i18n="model"></span>
-        <input name="model" required placeholder="gpt-4.1-mini / deepseek-chat / qwen2.5:7b">
+      <label class="row">
+        <span data-i18n="address"></span>
+        <input id="base-url" type="url" spellcheck="false" placeholder="https://">
       </label>
-      <label>
-        <span data-i18n="targetLang"></span>
-        <select name="targetLang"></select>
-      </label>
-      <label>
-        <span data-i18n="extraBody"></span>
-        <textarea name="extraBody" rows="3" spellcheck="false"></textarea>
-        <small data-i18n="extraBodyHint"></small>
-      </label>
-      <div class="actions">
-        <button type="submit" data-i18n="save"></button>
-        <button type="button" id="test" data-i18n="test"></button>
+      <div class="row">
+        <label for="model" data-i18n="model"></label>
+        <div class="field">
+          <input id="model" list="models" spellcheck="false">
+          <datalist id="models"></datalist>
+          <button type="button" id="refresh-models" class="small" data-i18n="refresh"></button>
+        </div>
       </div>
-      <output id="status"></output>
-    </form>
+      <p class="row-note" id="models-status"></p>
+      <label class="row">
+        <span data-i18n="reasoning"></span>
+        <select id="reasoning"></select>
+      </label>
+      <p class="row-note" data-i18n="reasoningHint"></p>
+      <div class="row">
+        <button type="button" id="test" data-i18n="test"></button>
+        <output id="test-result"></output>
+      </div>
+    </div>
+    <div class="note links">
+      <span id="key-help"></span>
+      <a id="key-page" target="_blank" rel="noreferrer" data-i18n="getKey"></a>
+    </div>
+    <div class="group" id="remove-group">
+      <div class="row">
+        <button type="button" id="remove-key" data-i18n="removeKey"></button>
+      </div>
+    </div>
+
+    <h2 data-i18n="sectionTranslate"></h2>
+    <div class="group">
+      <label class="row">
+        <span data-i18n="targetLang"></span>
+        <select id="target-lang"></select>
+      </label>
+      <p class="row-note" data-i18n="targetHint"></p>
+      <div class="row">
+        <span data-i18n="shortcut"></span>
+        <div class="field end">
+          <kbd id="shortcut"></kbd>
+          <button type="button" id="change-shortcut" class="small" data-i18n="shortcutChange"></button>
+        </div>
+      </div>
+      <p class="row-note" data-i18n="shortcutHint"></p>
+    </div>
+
+    <details>
+      <summary data-i18n="advanced"></summary>
+      <div class="group">
+        <div class="row column">
+          <label for="extra-body" data-i18n="extraBody"></label>
+          <textarea id="extra-body" rows="3" spellcheck="false" placeholder="{}"></textarea>
+        </div>
+        <p class="row-note" id="extra-body-note" data-i18n="extraBodyHint"></p>
+      </div>
+    </details>
   </main>
   <script src="common.js"></script>
   <script src="options.js"></script>

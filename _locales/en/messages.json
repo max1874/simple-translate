@@ -6,55 +6,178 @@
     "message": "Bilingual web page translation with your own LLM. One click, no tracking."
   },
   "actionTitle": {
-    "message": "Translate this page (Alt+A)"
+    "message": "Translate this page"
   },
   "optionsTitle": {
-    "message": "Simple Translate settings"
+    "message": "Simple Translate Settings"
   },
-  "baseUrl": {
-    "message": "API base URL"
+  "sectionService": {
+    "message": "Translation Service"
   },
-  "baseUrlHint": {
-    "message": "Any OpenAI-compatible endpoint, e.g. https://api.openai.com/v1, https://api.deepseek.com, https://openrouter.ai/api/v1, http://localhost:11434/v1"
+  "serviceNote": {
+    "message": "Simple Translate uses your own account with each service. Page text goes only to the service you choose, keys stay in this browser, and the service bills you at its standard rates."
+  },
+  "custom": {
+    "message": "Custom"
+  },
+  "customHint": {
+    "message": "Any OpenAI-compatible service"
+  },
+  "saved": {
+    "message": "Saved"
   },
   "apiKey": {
-    "message": "API key"
+    "message": "API Key"
   },
-  "apiKeyHint": {
-    "message": "Stored only in this browser and sent only to the API base URL above. Leave empty for local servers such as Ollama."
+  "keyRequired": {
+    "message": "Required"
+  },
+  "keyOptional": {
+    "message": "Optional"
+  },
+  "keySaved": {
+    "message": "Saved (••••$P1$). Paste a new key to replace it.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyHelp": {
+    "message": "Create a key in your $P1$ account and paste it above.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyHelpLocal": {
+    "message": "A model running on this computer usually needs no key."
+  },
+  "getKey": {
+    "message": "Get an API Key ↗"
+  },
+  "address": {
+    "message": "Address"
   },
   "model": {
     "message": "Model"
   },
-  "targetLang": {
-    "message": "Translate into"
+  "refresh": {
+    "message": "Refresh"
   },
-  "extraBody": {
-    "message": "Extra request fields (JSON, optional)"
+  "modelsLoading": {
+    "message": "Loading the service's models…"
   },
-  "extraBodyHint": {
-    "message": "Merged into every request body, e.g. {\"reasoning_effort\": \"none\"} for reasoning models."
+  "modelsLoaded": {
+    "message": "$P1$ models available; type to search.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
   },
-  "save": {
-    "message": "Save"
+  "modelsFailed": {
+    "message": "Could not load the model list ($P1$). You can still type a model name.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "reasoning": {
+    "message": "Reasoning"
+  },
+  "reasoningHint": {
+    "message": "Translating seldom needs it, and a model that reasons first is slower to start. Not every model accepts every level; the service says so when it doesn't."
+  },
+  "reasoning_default": {
+    "message": "Model default"
+  },
+  "reasoning_none": {
+    "message": "Off"
+  },
+  "reasoning_minimal": {
+    "message": "Minimal"
+  },
+  "reasoning_low": {
+    "message": "Low"
+  },
+  "reasoning_medium": {
+    "message": "Medium"
+  },
+  "reasoning_high": {
+    "message": "High"
   },
   "test": {
-    "message": "Save and test"
-  },
-  "saved": {
-    "message": "Saved."
+    "message": "Test"
   },
   "testing": {
     "message": "Testing…"
   },
+  "testOk": {
+    "message": "✓ First word in $P1$ s, done in $P2$ s: $P3$",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      },
+      "p2": {
+        "content": "$2"
+      },
+      "p3": {
+        "content": "$3"
+      }
+    }
+  },
   "permissionDenied": {
-    "message": "Access to the API host was not granted, so translations cannot be sent there."
+    "message": "Access to $P1$ was not granted, so translations cannot be sent there.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "removeKey": {
+    "message": "Remove Key…"
+  },
+  "removeConfirm": {
+    "message": "Click again to remove"
+  },
+  "sectionTranslate": {
+    "message": "Translation"
+  },
+  "targetLang": {
+    "message": "Translate into"
+  },
+  "targetHint": {
+    "message": "The source language is detected automatically; paragraphs already in this language are skipped."
+  },
+  "shortcut": {
+    "message": "Shortcut"
+  },
+  "shortcutNone": {
+    "message": "Not set"
+  },
+  "shortcutChange": {
+    "message": "Change"
+  },
+  "shortcutHint": {
+    "message": "\"Not set\" usually means another extension already uses the key. You can also click the toolbar icon."
+  },
+  "advanced": {
+    "message": "Advanced"
+  },
+  "extraBody": {
+    "message": "Extra request fields (JSON)"
+  },
+  "extraBodyHint": {
+    "message": "Merged into every request body."
   },
   "badExtraBody": {
-    "message": "Extra request fields must be a JSON object."
+    "message": "Not saved: extra request fields must be a JSON object."
   },
   "missingConfig": {
-    "message": "Fill in the API base URL and model first."
+    "message": "Choose a translation service and enter its API key in the settings first."
   },
   "translateFailed": {
     "message": "Translation failed"

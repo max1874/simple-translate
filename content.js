@@ -7,9 +7,12 @@
   globalThis.__simpleTranslate?.stop();
 
   const MARK = 'simple-translate';
+  // Paragraphs on screen go in small batches so the first ones come back
+  // sooner; the rest in larger ones to save requests.
+  const BATCH_ITEMS_ON_SCREEN = 4;
   const BATCH_ITEMS = 8;
   const BATCH_CHARS = 2500;
-  const MAX_REQUESTS = 4;
+  const MAX_REQUESTS = 6;
   const MAX_TEXT = 6000;
 
   // Elements whose text is never sent for translation.
@@ -33,6 +36,8 @@
   let checkTimer = 0;
   let running = 0;
   let waiting = [];
+  // Open translation ports, each with the function that settles its request.
+  let ports = new Map();
   let dirty = new Set();
   let revealed = new Set();
   let rescanTimer = 0;
@@ -119,7 +124,8 @@
     checkTimer ||= setTimeout(checkVisible, 100);
   }
 
-  // Queues paragraphs from one screen above the viewport to two screens below.
+  // Queues paragraphs from one screen above the viewport to two screens below,
+  // those on screen first, then below it, then above it.
   function checkVisible() {
     checkTimer = 0;
     const rest = [];
@@ -128,10 +134,16 @@
       if (unit.dead || !unit.nodes[0].isConnected) continue;
       const rect = unit.range.getBoundingClientRect();
       const shown = rect.width || rect.height;
-      if (shown && rect.bottom >= -innerHeight && rect.top <= innerHeight * 3) visible.push(unit);
-      else rest.push(unit);
+      if (shown && rect.bottom >= -innerHeight && rect.top <= innerHeight * 3) {
+        unit.onScreen = rect.bottom > 0 && rect.top < innerHeight;
+        unit.order = unit.onScreen ? rect.top : rect.top > 0 ? innerHeight + rect.top : 4 * innerHeight - rect.bottom;
+        visible.push(unit);
+      } else {
+        rest.push(unit);
+      }
     }
     pending = rest;
+    visible.sort((a, b) => a.order - b.order);
     if (visible.length) flushQueue(visible);
   }
 
@@ -153,7 +165,8 @@
         fill(unit, cache.get(unit.text));
         continue;
       }
-      if (batch.length && (batch.length >= BATCH_ITEMS || chars + unit.text.length > BATCH_CHARS)) {
+      const limit = batch[0]?.onScreen ? BATCH_ITEMS_ON_SCREEN : BATCH_ITEMS;
+      if (batch.length && (batch.length >= limit || unit.onScreen !== batch[0].onScreen || chars + unit.text.length > BATCH_CHARS)) {
         request(batch, gen);
         batch = [];
         chars = 0;
@@ -185,24 +198,47 @@
     unit.el.textContent = translation;
   }
 
+  // Text arrives while the model writes it; the final reply then overwrites
+  // it, which matters when a batch was rejected and retried one by one.
+  function exchange(texts, onItem) {
+    return new Promise((resolve) => {
+      let port;
+      const settle = (response) => {
+        ports.delete(port);
+        resolve(response);
+      };
+      try {
+        port = chrome.runtime.connect({ name: 'translate' });
+      } catch (error) {
+        resolve({ type: 'error', error: error.message });
+        return;
+      }
+      ports.set(port, settle);
+      port.onMessage.addListener((message) => {
+        if (message.type === 'item') onItem(message.index, message.text);
+        else settle(message);
+      });
+      port.onDisconnect.addListener(() => settle({ type: 'error', error: chrome.runtime.lastError?.message ?? 'disconnected' }));
+      port.postMessage({ texts });
+    });
+  }
+
   async function request(units, gen) {
     while (gen === generation && running >= MAX_REQUESTS) {
       await new Promise((resolve) => waiting.push(resolve));
     }
     if (gen !== generation) return;
     running++;
-    let response;
-    try {
-      response = await chrome.runtime.sendMessage({ type: 'translate', texts: units.map((u) => u.text) });
-    } catch (error) {
-      response = { ok: false, error: error.message };
-    }
+    const reply = await exchange(units.map((u) => u.text), (index, text) => {
+      if (gen === generation) fill(units[index], text);
+    });
+    const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
     if (gen !== generation) return;
     running--;
     waiting.shift()?.();
-    if (!response?.ok) {
+    if (!response.ok) {
       for (const unit of units) unit.el.remove();
-      toast(`${chrome.i18n.getMessage('translateFailed')}: ${response?.error ?? 'no response'}`);
+      toast(`${chrome.i18n.getMessage('translateFailed')}: ${response.error}`);
       return;
     }
     units.forEach((unit, i) => {
@@ -308,6 +344,11 @@
     generation++;
     running = 0;
     waiting.splice(0).forEach((resolve) => resolve());
+    // Disconnecting aborts the model request in the service worker.
+    for (const [port, settle] of ports) {
+      port.disconnect();
+      settle({ type: 'error', error: 'stopped' });
+    }
     mutations.disconnect();
     removeEventListener('scroll', scheduleCheck, { capture: true });
     removeEventListener('resize', scheduleCheck);
