@@ -92,7 +92,48 @@ async function translateBatch(config, texts) {
     return null;
   }
   const translations = texts.map((_, i) => output[String(i + 1)]);
-  return translations.every((t) => typeof t === 'string' && t.trim()) ? translations : null;
+  if (!translations.every((t) => typeof t === 'string' && t.trim())) {
+    console.warn('Simple Translate: batch reply is missing paragraphs; retrying one by one');
+    return null;
+  }
+  const problem = misalignment(texts, translations);
+  if (problem) {
+    console.warn(`Simple Translate: batch reply looks misaligned (${problem}); retrying one by one`);
+    return null;
+  }
+  return translations;
+}
+
+// A reply can keep every key yet put translations under the wrong paragraph,
+// e.g. after splitting one paragraph and merging two others. These checks
+// catch most such shifts; a false alarm only costs a one-by-one retry.
+const RATIO_MIN_CHARS = 20;
+const RATIO_TOLERANCE = 2.5;
+
+function misalignment(texts, translations) {
+  const seen = new Map();
+  for (const [i, translation] of translations.entries()) {
+    const key = translation.trim();
+    if (seen.has(key) && texts[seen.get(key)] !== texts[i]) return `same translation for ${seen.get(key) + 1} and ${i + 1}`;
+    seen.set(key, i);
+  }
+  // Names and other text kept as is: a shift shows up as another paragraph's
+  // source under this key. This also covers short items the ratio check skips.
+  const sources = new Map(texts.map((text, i) => [text.trim(), i]));
+  for (const [i, translation] of translations.entries()) {
+    const j = sources.get(translation.trim());
+    if (j !== undefined && j !== i && texts[j].trim() !== texts[i].trim()) return `${i + 1} holds the source of ${j + 1}`;
+  }
+  // Within one batch and one language pair, translation length divided by
+  // source length stays in a narrow band; a shifted paragraph falls outside.
+  const ratios = texts
+    .map((text, i) => ({ i, ratio: translations[i].length / text.length, size: text.length }))
+    .filter((r) => r.size >= RATIO_MIN_CHARS);
+  if (ratios.length < 3) return '';
+  const sorted = ratios.map((r) => r.ratio).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const outlier = ratios.find((r) => r.ratio > median * RATIO_TOLERANCE || r.ratio < median / RATIO_TOLERANCE);
+  return outlier ? `length ratio of ${outlier.i + 1} is ${outlier.ratio.toFixed(2)}, median ${median.toFixed(2)}` : '';
 }
 
 async function chat(config, system, user) {

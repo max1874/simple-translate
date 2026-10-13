@@ -27,7 +27,7 @@ For reasoning models, put `{"reasoning_effort": "none"}` (or what your provider 
 
 - `background.js` injects the content script into the current tab when you click, and sends translation requests to `{base URL}/chat/completions`.
 - `content.js` splits the page into paragraphs (runs of inline content between block elements and `<br>`), skips code, navigation, form controls and text already in the target language, and inserts a `<span class="simple-translate">` after each paragraph near the viewport.
-- Paragraphs go to the model in batches of up to 8 as a JSON object (`{"1": "...", "2": "..."}`) and come back with the same keys. If a reply breaks that format, the batch is retried one paragraph at a time.
+- Paragraphs go to the model in batches of up to 8 as a JSON object (`{"1": "...", "2": "..."}`) and come back with the same keys. A reply that misses a key, or looks shifted (two keys with the same translation, a key holding another paragraph's source, or a translation/source length ratio far from the rest of the batch), is discarded and the batch is retried one paragraph at a time. Only accepted translations are cached.
 - Content added later (infinite scroll, single-page apps) is picked up while translation is on.
 
 ## Privacy
