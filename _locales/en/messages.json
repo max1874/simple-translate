@@ -181,5 +181,8 @@
   },
   "translateFailed": {
     "message": "Translation failed"
+  },
+  "badAddress": {
+    "message": "Enter an address that starts with https:// or http://."
   }
 }

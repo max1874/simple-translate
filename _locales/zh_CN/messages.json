@@ -181,5 +181,8 @@
   },
   "translateFailed": {
     "message": "翻译失败"
+  },
+  "badAddress": {
+    "message": "请填写以 https:// 或 http:// 开头的地址。"
   }
 }

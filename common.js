@@ -110,23 +110,37 @@ function defaultTargetLang() {
   return codes.find((code) => code !== 'en') ?? codes[0] ?? 'en';
 }
 
+// Version 0.1 kept one flat service. Read as the new shape here, in memory
+// only, so concurrent readers never race to write it; background.js writes
+// it once on update (migrateConfig).
+function upgradeStored(stored) {
+  if (!('baseUrl' in stored) || stored.services) return false;
+  const preset = SERVICES.find((s) => s.baseUrl && sameOrigin(s.baseUrl, stored.baseUrl));
+  const id = preset?.id ?? 'custom';
+  stored.service = id;
+  stored.services = {
+    [id]: {
+      apiKey: stored.apiKey ?? '',
+      ...(stored.model && { model: stored.model }),
+      ...(id === 'custom' && { baseUrl: stored.baseUrl }),
+      // 0.1 sent no reasoning field; models chosen then (gpt-4o-mini,
+      // gpt-4.1) reject one, so keep sending none.
+      reasoning: 'default',
+    },
+  };
+  return true;
+}
+
+async function migrateConfig() {
+  const stored = await chrome.storage.local.get(null);
+  if (!upgradeStored(stored)) return;
+  await chrome.storage.local.set({ service: stored.service, services: stored.services });
+  await chrome.storage.local.remove(['baseUrl', 'apiKey', 'model']);
+}
+
 async function loadConfig() {
   const stored = await chrome.storage.local.get(null);
-  // Version 0.1 kept one flat service; carry it over once.
-  if ('baseUrl' in stored && !stored.services) {
-    const preset = SERVICES.find((s) => s.baseUrl && sameOrigin(s.baseUrl, stored.baseUrl));
-    const id = preset?.id ?? 'custom';
-    stored.service = id;
-    stored.services = {
-      [id]: {
-        apiKey: stored.apiKey ?? '',
-        ...(stored.model && { model: stored.model }),
-        ...(id === 'custom' && { baseUrl: stored.baseUrl }),
-      },
-    };
-    await chrome.storage.local.set({ service: stored.service, services: stored.services });
-    await chrome.storage.local.remove(['baseUrl', 'apiKey', 'model']);
-  }
+  upgradeStored(stored);
   const config = { ...DEFAULTS };
   for (const key of Object.keys(DEFAULTS)) if (key in stored) config[key] = stored[key];
   if (!config.targetLang) config.targetLang = defaultTargetLang();

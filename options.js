@@ -75,47 +75,73 @@ function render() {
   $('reasoning').value = service.reasoning;
   $('key-page').hidden = !service.keyPage;
   if (service.keyPage) $('key-page').href = service.keyPage;
-  $('key-help').textContent = service.keyPage ? t('keyHelp', service.name) : service.needsKey ? '' : t('keyHelpLocal');
+  $('key-help').textContent = service.keyPage ? t('keyHelp', service.name) : service.id === 'ollama' ? t('keyHelpLocal') : '';
   $('remove-group').hidden = !service.apiKey;
   resetRemove();
 }
 
-// Asks Chrome for access to the service's address. Must be called before any
-// await in a click handler: the request needs that click's user gesture.
-function requestAccess(baseUrl) {
-  let origin;
+// An http(s) address, or null.
+function parseAddress(baseUrl) {
   try {
-    origin = `${new URL(baseUrl).origin}/*`;
+    const url = new URL(baseUrl);
+    return /^https?:$/.test(url.protocol) ? url : null;
   } catch {
+    return null;
+  }
+}
+
+// Asks Chrome for access to the service's address and reports a refusal.
+// Must be called before any await in an event handler: the request needs the
+// user gesture (a click, or the typing or pasting that ends in a change).
+function requestAccess(baseUrl) {
+  const url = parseAddress(baseUrl);
+  if (!url) {
+    showResult(t('badAddress'), 'error');
     return Promise.resolve(false);
   }
-  return chrome.permissions.request({ origins: [origin] }).catch(() => false);
+  return chrome.permissions.request({ origins: [`${url.origin}/*`] })
+    .catch(() => false)
+    .then((granted) => {
+      if (!granted) showResult(t('permissionDenied', url.host), 'error');
+      return granted;
+    });
 }
 
 function choose(id) {
   config.service = id;
-  const access = current().baseUrl ? requestAccess(current().baseUrl) : Promise.resolve(true);
+  showResult('');
+  const access = current().baseUrl ? requestAccess(current().baseUrl) : Promise.resolve(false);
   save();
   render();
-  $('test-result').textContent = '';
-  access.then((granted) => {
-    if (!granted) showResult(t('permissionDenied', new URL(current().baseUrl).host), 'error');
-    loadModels();
-  });
+  access.then(() => loadModels());
 }
 
+// Saving a key is also when access to the service is asked for: the service
+// already selected when the page opens is never clicked.
 $('api-key').addEventListener('change', async (event) => {
   const value = event.target.value.trim();
   if (!value) return;
+  const access = requestAccess(current().baseUrl);
   await saveService({ apiKey: value });
   render();
+  await access;
   loadModels(true);
 });
 
 $('base-url').addEventListener('change', async (event) => {
   if (current().id !== 'custom') return;
-  await saveService({ baseUrl: event.target.value.trim() });
+  const value = event.target.value.trim();
+  showResult('');
+  const access = requestAccess(value);
+  // A key belongs to the host it was made for; never send it to a new one.
+  const before = parseAddress(current().baseUrl);
+  const after = parseAddress(value);
+  const patch = { baseUrl: value };
+  if (current().apiKey && before?.origin !== after?.origin) patch.apiKey = '';
+  await saveService(patch);
   render();
+  await access;
+  loadModels(true);
 });
 
 $('model').addEventListener('change', async (event) => {
@@ -149,9 +175,7 @@ $('extra-body').addEventListener('change', (event) => {
 });
 
 $('refresh-models').addEventListener('click', () => {
-  const service = current();
-  const access = requestAccess(service.baseUrl);
-  access.then(() => loadModels(true));
+  requestAccess(current().baseUrl).then(() => loadModels(true));
 });
 
 // The model list comes from the service itself, so it never goes stale.
@@ -186,14 +210,10 @@ function showResult(text, kind) {
 }
 
 $('test').addEventListener('click', () => {
-  const service = current();
-  const access = requestAccess(service.baseUrl);
-  showResult(t('testing'));
+  const access = requestAccess(current().baseUrl);
   access.then(async (granted) => {
-    if (!granted) {
-      showResult(t('permissionDenied', new URL(service.baseUrl).host), 'error');
-      return;
-    }
+    if (!granted) return;
+    showResult(t('testing'));
     const sample = languageKey(config.targetLang) === 'en'
       ? '你好！这句话用来检查翻译是否正常。'
       : 'Hello! This sentence checks that translation works.';

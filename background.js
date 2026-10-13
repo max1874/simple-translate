@@ -3,6 +3,7 @@ importScripts('common.js');
 const REQUEST_TIMEOUT_MS = 90_000;
 
 chrome.action.onClicked.addListener(toggleTab);
+chrome.runtime.onInstalled.addListener(migrateConfig);
 
 // The tooltip names the shortcut actually assigned, which may differ from the
 // suggested one when another extension already holds it.
@@ -37,7 +38,7 @@ async function toggleTab(tab) {
     await chrome.scripting.executeScript({
       target,
       func: (pageConfig) => globalThis.__simpleTranslate.toggle(pageConfig),
-      args: [{ targetLang: config.targetLang, model: `${service.baseUrl} ${service.model}` }],
+      args: [{ targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning, config.extraBody].join(' ') }],
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
@@ -66,6 +67,8 @@ chrome.runtime.onConnect.addListener((port) => {
       )
       .finally(() => {
         release();
+        // Requests still running after a failure would only cost money.
+        controller.abort();
         port.disconnect();
       });
   });
@@ -108,7 +111,31 @@ async function translate(texts, onItem = () => {}, signal) {
   const batch = await translateBatch(config, texts, onItem, signal);
   // A model that broke the JSON contract gets the paragraphs one by one; their
   // text replaces whatever the batch already showed.
-  return batch ?? Promise.all(texts.map((text, i) => translateOne(config, text, (t) => onItem(i, t), signal)));
+  return batch ?? oneByOne(config, texts, onItem, signal);
+}
+
+// A few at a time, so one rejected batch does not become eight concurrent
+// requests; the first failure cancels the rest.
+const ONE_BY_ONE_LIMIT = 3;
+
+async function oneByOne(config, texts, onItem, signal) {
+  const failed = new AbortController();
+  const both = signal ? AbortSignal.any([signal, failed.signal]) : failed.signal;
+  const results = new Array(texts.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < texts.length) {
+      const i = next++;
+      results[i] = await translateOne(config, texts[i], (t) => onItem(i, t), both);
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(ONE_BY_ONE_LIMIT, texts.length) }, worker));
+  } catch (error) {
+    failed.abort();
+    throw error;
+  }
+  return results;
 }
 
 function systemPrompt(config, batch) {
@@ -172,7 +199,7 @@ async function translateBatch(config, texts, onItem, signal) {
 // A reply can keep every key yet put translations under the wrong paragraph,
 // e.g. after splitting one paragraph and merging two others. These checks
 // catch most such shifts; a false alarm only costs a one-by-one retry.
-const RATIO_MIN_CHARS = 20;
+const RATIO_MIN_CHARS = 8;
 const RATIO_TOLERANCE = 2.5;
 
 function misalignment(texts, translations) {
