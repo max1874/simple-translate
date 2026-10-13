@@ -1,6 +1,8 @@
 // Shared by the service worker, the options page and the content script.
+// `var`, not `const`: the content script may be injected into a page again
+// after the extension reloads, and `const` cannot be redeclared there.
 
-const LANGUAGES = [
+var LANGUAGES = [
   ['zh-CN', '简体中文', 'Simplified Chinese'],
   ['zh-TW', '繁體中文', 'Traditional Chinese'],
   ['en', 'English', 'English'],
@@ -16,7 +18,7 @@ const LANGUAGES = [
   ['ar', 'العربية', 'Arabic'],
 ];
 
-const DEFAULTS = {
+var DEFAULTS = {
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
   model: '',

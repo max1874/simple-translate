@@ -2,6 +2,10 @@
 // near the viewport and inserts each translation right after its paragraph.
 
 (() => {
+  // After the extension reloads, an instance left in this page can no longer
+  // reach the extension; clear its translations before replacing it.
+  globalThis.__simpleTranslate?.stop();
+
   const MARK = 'simple-translate';
   const BATCH_ITEMS = 8;
   const BATCH_CHARS = 2500;
@@ -14,7 +18,7 @@
     'VIDEO', 'AUDIO', 'IFRAME', 'OBJECT', 'EMBED', 'TEXTAREA', 'INPUT', 'SELECT', 'BUTTON',
   ]);
   // Blocks skipped together with everything inside them.
-  const SKIP_BLOCK = 'pre, nav, [role="navigation"], code, kbd, samp, [translate="no"], .notranslate, [contenteditable=""], [contenteditable="true"], [aria-hidden="true"]';
+  const SKIP_BLOCK = 'pre, nav, [role="navigation"], code, kbd, samp, [translate="no"], .notranslate, [aria-hidden="true"]';
   // An inline element holding any of these is scanned like a block. <br> is
   // included because old pages separate paragraphs with <br><br>.
   const BLOCK_DESCENDANT = 'address, article, aside, blockquote, br, dd, details, div, dl, dt, fieldset, figcaption, figure, footer, form, h1, h2, h3, h4, h5, h6, header, hr, li, main, ol, p, pre, section, table, ul';
@@ -22,12 +26,15 @@
   let on = false;
   let generation = 0;
   let targetLang = 'en';
+  let cacheKey = '';
   let seen = new WeakSet();
+  let blockUnits = new WeakMap();
   let pending = [];
   let checkTimer = 0;
   let running = 0;
   let waiting = [];
-  let rescanRoots = new Set();
+  let dirty = new Set();
+  let revealed = new Set();
   let rescanTimer = 0;
   const cache = new Map();
 
@@ -37,18 +44,22 @@
     return node.nodeType === Node.ELEMENT_NODE && node.classList.contains(MARK);
   }
 
+  function isSkipped(el) {
+    return el.isContentEditable || Boolean(el.closest(`.${MARK}, ${SKIP_BLOCK}`));
+  }
+
   // 'inline': part of the surrounding paragraph. 'block': a container to scan.
   // 'opaque-inline' / 'opaque-block': contributes no text.
   function classify(el) {
     if (isOurs(el) || el.tagName === 'BR') return 'opaque-block';
     const display = getComputedStyle(el).display;
-    if (display === 'none') return 'opaque-inline';
+    if (display === 'none') return el.matches(BLOCK_DESCENDANT) ? 'opaque-block' : 'opaque-inline';
     const inline = display.startsWith('inline') || display === 'ruby';
     if (NO_TEXT.has(el.tagName.toUpperCase())) return inline ? 'opaque-inline' : 'opaque-block';
     if (inline && !el.querySelector(BLOCK_DESCENDANT)) {
-      return el.isContentEditable ? 'opaque-inline' : 'inline';
+      return el.isContentEditable || el.matches('[aria-hidden="true"]') ? 'opaque-inline' : 'inline';
     }
-    return el.matches(SKIP_BLOCK) ? 'opaque-block' : 'block';
+    return el.isContentEditable || el.matches(SKIP_BLOCK) ? 'opaque-block' : 'block';
   }
 
   function textOf(node) {
@@ -66,7 +77,7 @@
     seen.add(block);
     let run = [];
     const flush = () => {
-      if (run.length) addUnit(run);
+      if (run.length) addUnit(block, run);
       run = [];
     };
     for (const child of block.childNodes) {
@@ -86,15 +97,21 @@
     flush();
   }
 
-  function addUnit(nodes) {
+  function addUnit(block, nodes) {
     const text = nodes.map(textOf).join('').replace(/\s+/g, ' ').trim();
     if (text.length < 2 || text.length > MAX_TEXT || !/\p{L}/u.test(text)) return;
+    // Anything inserted into a flex or grid container becomes a new item beside
+    // the text, not below it. Such runs are almost always UI labels.
+    if (/flex|grid/.test(getComputedStyle(block).display)) return;
     // A Range, not an element, so runs made only of text nodes get their own
     // position instead of their (possibly page-sized) container's.
     const range = document.createRange();
     range.setStartBefore(nodes[0]);
     range.setEndAfter(nodes[nodes.length - 1]);
-    pending.push({ nodes, text, range });
+    const unit = { block, nodes, text, range, el: null, dead: false };
+    if (!blockUnits.has(block)) blockUnits.set(block, []);
+    blockUnits.get(block).push(unit);
+    pending.push(unit);
     scheduleCheck();
   }
 
@@ -108,7 +125,7 @@
     const rest = [];
     const visible = [];
     for (const unit of pending) {
-      if (!unit.nodes[0].isConnected) continue;
+      if (unit.dead || !unit.nodes[0].isConnected) continue;
       const rect = unit.range.getBoundingClientRect();
       const shown = rect.width || rect.height;
       if (shown && rect.bottom >= -innerHeight && rect.top <= innerHeight * 3) visible.push(unit);
@@ -131,8 +148,7 @@
     let batch = [];
     let chars = 0;
     for (const [i, unit] of units.entries()) {
-      if (skip[i]) continue;
-      unit.el = insertTranslation(unit);
+      if (skip[i] || unit.dead || !insertTranslation(unit)) continue;
       if (cache.has(unit.text)) {
         fill(unit, cache.get(unit.text));
         continue;
@@ -148,35 +164,42 @@
     if (batch.length) request(batch, gen);
   }
 
+  // The page may have moved or removed the paragraph while its language was
+  // being detected; such a unit is dropped and picked up again by rescan.
   function insertTranslation(unit) {
+    if (!unit.nodes.every((n) => n.parentNode === unit.block)) return false;
     const el = document.createElement('span');
     el.className = `${MARK} ${MARK}-loading`;
     el.lang = targetLang;
     el.dir = 'auto';
     el.textContent = '…';
     const last = unit.nodes[unit.nodes.length - 1];
-    last.parentNode.insertBefore(el, last.nextSibling);
-    return el;
+    unit.block.insertBefore(el, last.nextSibling);
+    unit.el = el;
+    return true;
   }
 
   function fill(unit, translation) {
+    if (unit.dead) return;
     unit.el.classList.remove(`${MARK}-loading`);
     unit.el.textContent = translation;
   }
 
   async function request(units, gen) {
-    if (running >= MAX_REQUESTS) await new Promise((resolve) => waiting.push(resolve));
+    while (gen === generation && running >= MAX_REQUESTS) {
+      await new Promise((resolve) => waiting.push(resolve));
+    }
+    if (gen !== generation) return;
     running++;
     let response;
     try {
       response = await chrome.runtime.sendMessage({ type: 'translate', texts: units.map((u) => u.text) });
     } catch (error) {
       response = { ok: false, error: error.message };
-    } finally {
-      running--;
-      waiting.shift()?.();
     }
     if (gen !== generation) return;
+    running--;
+    waiting.shift()?.();
     if (!response?.ok) {
       for (const unit of units) unit.el.remove();
       toast(`${chrome.i18n.getMessage('translateFailed')}: ${response?.error ?? 'no response'}`);
@@ -189,29 +212,64 @@
     });
   }
 
+  // Changed text inside a scanned paragraph makes its block "dirty": its old
+  // translations are removed and the block is scanned again. New or newly
+  // shown elements are scanned if they have not been yet.
   function onMutations(records) {
     for (const record of records) {
-      for (const node of record.addedNodes) {
-        if (isOurs(node)) continue;
-        const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-        if (el) rescanRoots.add(el);
+      const target = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+      if (!target || target.closest(`.${MARK}`)) continue;
+      if (record.type === 'attributes') {
+        revealed.add(target);
+      } else if (record.type === 'characterData') {
+        dirty.add(target);
+      } else {
+        const changed = [...record.addedNodes, ...record.removedNodes].filter((n) => !isOurs(n));
+        if (!changed.length) continue;
+        for (const node of record.addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE && !isOurs(node)) revealed.add(node);
+        }
+        const inlineChanged = changed.some((n) => n.nodeType === Node.TEXT_NODE
+          || (n.nodeType === Node.ELEMENT_NODE && !n.matches(BLOCK_DESCENDANT)));
+        if (inlineChanged) dirty.add(target);
       }
     }
-    clearTimeout(rescanTimer);
-    rescanTimer = setTimeout(rescan, 300);
+    rescanTimer ||= setTimeout(rescan, 300);
   }
 
-  // New content on a page that is already translated: scan the nearest block
-  // that has not been scanned yet. Text added inside an already translated
-  // paragraph is left alone.
   function rescan() {
-    const roots = [...rescanRoots];
-    rescanRoots = new Set();
-    for (let el of roots) {
-      if (!el.isConnected || el.closest(`.${MARK}, ${SKIP_BLOCK}`)) continue;
-      while (el !== document.body && classify(el) !== 'block') el = el.parentElement;
-      if (!seen.has(el)) scan(el);
+    rescanTimer = 0;
+    const dirtyEls = [...dirty];
+    const revealedEls = [...revealed];
+    dirty = new Set();
+    revealed = new Set();
+    for (let el of dirtyEls) {
+      while (el && !seen.has(el)) el = el.parentElement;
+      if (el?.isConnected) refresh(el);
     }
+    for (const el of revealedEls) {
+      if (!document.body.contains(el) || isSkipped(el)) continue;
+      let block = el;
+      while (block !== document.body && classify(block) !== 'block') block = block.parentElement;
+      scan(block);
+      // A container that was hidden when its parent was scanned.
+      for (const child of el.children) {
+        if (!seen.has(child) && classify(child) === 'block') scan(child);
+      }
+    }
+    // Paragraphs scanned while hidden, or moved by the change, may now be near
+    // the viewport without any scrolling.
+    scheduleCheck();
+  }
+
+  function refresh(block) {
+    for (const unit of blockUnits.get(block) ?? []) {
+      unit.dead = true;
+      unit.el?.remove();
+    }
+    blockUnits.delete(block);
+    seen.delete(block);
+    scan(block);
   }
 
   function toast(message) {
@@ -223,12 +281,24 @@
     setTimeout(() => el.remove(), 8000);
   }
 
-  async function start() {
-    const config = await loadConfig();
+  function start(config) {
+    if (!document.body || document.designMode === 'on') return;
+    const key = `${config.targetLang}\n${config.model}`;
+    if (key !== cacheKey) {
+      cache.clear();
+      cacheKey = key;
+    }
     targetLang = config.targetLang;
     on = true;
     scan(document.body);
-    mutations.observe(document.body, { childList: true, subtree: true });
+    // The whole document, so a page that replaces <body> is still followed.
+    mutations.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'open'],
+    });
     addEventListener('scroll', scheduleCheck, { capture: true, passive: true });
     addEventListener('resize', scheduleCheck, { passive: true });
   }
@@ -236,19 +306,26 @@
   function stop() {
     on = false;
     generation++;
+    running = 0;
+    waiting.splice(0).forEach((resolve) => resolve());
     mutations.disconnect();
     removeEventListener('scroll', scheduleCheck, { capture: true });
     removeEventListener('resize', scheduleCheck);
     clearTimeout(checkTimer);
     checkTimer = 0;
     clearTimeout(rescanTimer);
+    rescanTimer = 0;
     document.querySelectorAll(`.${MARK}`).forEach((el) => el.remove());
     seen = new WeakSet();
+    blockUnits = new WeakMap();
     pending = [];
-    rescanRoots = new Set();
+    dirty = new Set();
+    revealed = new Set();
   }
 
   globalThis.__simpleTranslate = {
-    toggle: () => (on ? stop() : start()),
+    alive: () => Boolean(chrome.runtime?.id),
+    toggle: (config) => (on ? stop() : start(config)),
+    stop,
   };
 })();

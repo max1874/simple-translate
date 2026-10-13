@@ -14,15 +14,17 @@ async function toggleTab(tab) {
   try {
     const [{ result: loaded }] = await chrome.scripting.executeScript({
       target,
-      func: () => Boolean(globalThis.__simpleTranslate),
+      func: () => Boolean(globalThis.__simpleTranslate?.alive()),
     });
     if (!loaded) {
       await chrome.scripting.insertCSS({ target, files: ['content.css'] });
       await chrome.scripting.executeScript({ target, files: ['common.js', 'content.js'] });
     }
+    // Only what the page needs; the API key stays out of the page's process.
     await chrome.scripting.executeScript({
       target,
-      func: () => globalThis.__simpleTranslate.toggle(),
+      func: (pageConfig) => globalThis.__simpleTranslate.toggle(pageConfig),
+      args: [{ targetLang: config.targetLang, model: config.model }],
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
@@ -32,12 +34,28 @@ async function toggleTab(tab) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'translate') return false;
-  translate(message.texts).then(
-    (translations) => sendResponse({ ok: true, translations }),
-    (error) => sendResponse({ ok: false, error: error.message }),
-  );
+  hold();
+  translate(message.texts)
+    .then(
+      (translations) => sendResponse({ ok: true, translations }),
+      (error) => sendResponse({ ok: false, error: error.message }),
+    )
+    .finally(release);
   return true;
 });
+
+// An idle service worker is stopped after 30s; an extension API call resets
+// that timer, so keep making one while a translation is in flight.
+let inFlight = 0;
+let keepAlive = 0;
+
+function hold() {
+  if (inFlight++ === 0) keepAlive = setInterval(chrome.runtime.getPlatformInfo, 20_000);
+}
+
+function release() {
+  if (--inFlight === 0) clearInterval(keepAlive);
+}
 
 async function translate(texts) {
   const config = await loadConfig();
@@ -92,6 +110,9 @@ async function chat(config, system, user) {
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
+      // Chrome may stop the service worker when a fetch waits more than 30s
+      // for response headers; streaming makes them arrive right away.
+      stream: true,
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -99,10 +120,29 @@ async function chat(config, system, user) {
     const body = (await response.text()).slice(0, 300);
     throw new Error(`HTTP ${response.status} ${body}`);
   }
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    throw new Error(`Unexpected response: ${JSON.stringify(data).slice(0, 300)}`);
-  }
+  const content = await readContent(response);
   return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+// Joins the deltas of a server-sent event stream; also accepts a plain JSON
+// reply from servers that ignore `stream`.
+async function readContent(response) {
+  const raw = await response.text();
+  if (!(response.headers.get('Content-Type') ?? '').includes('text/event-stream')) {
+    let content;
+    try {
+      content = JSON.parse(raw).choices?.[0]?.message?.content;
+    } catch {}
+    if (typeof content !== 'string') throw new Error(`Unexpected response: ${raw.slice(0, 300)}`);
+    return content;
+  }
+  let content = '';
+  for (const line of raw.split('\n')) {
+    const data = line.startsWith('data:') ? line.slice(5).trim() : '';
+    if (!data || data === '[DONE]') continue;
+    const event = JSON.parse(data);
+    if (event.error) throw new Error(`API error: ${JSON.stringify(event.error).slice(0, 300)}`);
+    content += event.choices?.[0]?.delta?.content ?? '';
+  }
+  return content;
 }

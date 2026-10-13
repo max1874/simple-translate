@@ -27,11 +27,15 @@ function save(then) {
     }
   }
   const origin = `${new URL(config.baseUrl).origin}/*`;
-  chrome.permissions.request({ origins: [origin] }).then(async (granted) => {
-    await chrome.storage.local.set(config);
-    status.textContent = granted ? t('saved') : t('permissionDenied');
-    if (granted) then?.();
-  });
+  chrome.permissions.request({ origins: [origin] })
+    .then(async (granted) => {
+      await chrome.storage.local.set(config);
+      status.textContent = granted ? t('saved') : t('permissionDenied');
+      if (granted) await then?.();
+    })
+    .catch((error) => {
+      status.textContent = `✗ ${error.message}`;
+    });
 }
 
 form.addEventListener('submit', (event) => {
