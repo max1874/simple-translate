@@ -138,9 +138,42 @@ async function oneByOne(config, texts, onItem, signal) {
   return results;
 }
 
-function systemPrompt(config, batch) {
+// content.js marks inline formatting as <x1>…</x1> and code or images as <x2/>,
+// numbered from 1 in each paragraph.
+const TAGGED = /<x\d+\/?>/;
+const TAGS = /<(\/?)x(\d+)(\/?)>/g;
+
+// In a batch the tags are numbered on through all paragraphs, so a translation
+// carrying another paragraph's tags is known to be misplaced.
+function numberTags(texts) {
+  let next = 0;
+  return texts.map((text) => {
+    const first = next;
+    let count = 0;
+    const numbered = text.replace(TAGS, (_, close, n, self) => {
+      count = Math.max(count, Number(n));
+      return `<${close}x${Number(n) + first}${self}>`;
+    });
+    next += count;
+    return { numbered, first, count };
+  });
+}
+
+// Back to the paragraph's own numbers; null when a tag belongs elsewhere.
+function ownTags(text, { first, count }) {
+  let foreign = false;
+  const own = text.replace(TAGS, (_, close, n, self) => {
+    const local = Number(n) - first;
+    if (local < 1 || local > count) foreign = true;
+    return `<${close}x${local}${self}>`;
+  });
+  return foreign ? null : own;
+}
+
+function systemPrompt(config, batch, tagged) {
   const lang = languageName(config.targetLang);
-  const keep = 'Keep code, URLs, numbers and names that are normally left untranslated as they are. Do not add notes or explanations.';
+  let keep = 'Keep code, URLs, numbers and names that are normally left untranslated as they are. Do not add notes or explanations.';
+  if (tagged) keep += ' Tags like <x1>…</x1> mark formatting: keep each one around the translated words it marks. Keep each <x2/>-style tag, unchanged, where it belongs in the sentence.';
   if (!batch) {
     return `You translate text from web pages into ${lang}. Reply with only the translation of the user's text. ${keep}`;
   }
@@ -148,7 +181,7 @@ function systemPrompt(config, batch) {
 }
 
 async function translateOne(config, text, onText, signal) {
-  return chat(config, systemPrompt(config, false), text, (content) => {
+  return chat(config, systemPrompt(config, false, TAGGED.test(text)), text, (content) => {
     const visible = withoutThinking(content).trim();
     if (visible) onText(visible);
   }, signal);
@@ -158,9 +191,10 @@ async function translateOne(config, text, onText, signal) {
 const COMPLETE_ENTRY = /"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
 
 async function translateBatch(config, texts, onItem, signal) {
-  const input = Object.fromEntries(texts.map((text, i) => [String(i + 1), text]));
+  const tags = numberTags(texts);
+  const input = Object.fromEntries(tags.map(({ numbered }, i) => [String(i + 1), numbered]));
   const shown = new Set();
-  const reply = await chat(config, systemPrompt(config, true), JSON.stringify(input, null, 1), (content) => {
+  const reply = await chat(config, systemPrompt(config, true, texts.some((t) => TAGGED.test(t))), JSON.stringify(input, null, 1), (content) => {
     for (const [, key, raw] of withoutThinking(content).matchAll(COMPLETE_ENTRY)) {
       const index = Number(key) - 1;
       if (shown.has(index) || index < 0 || index >= texts.length) continue;
@@ -170,6 +204,8 @@ async function translateBatch(config, texts, onItem, signal) {
       } catch {
         continue;
       }
+      text = ownTags(text, tags[index]);
+      if (text === null) continue;
       shown.add(index);
       onItem(index, text);
     }
@@ -183,9 +219,15 @@ async function translateBatch(config, texts, onItem, signal) {
   } catch {
     return null;
   }
-  const translations = texts.map((_, i) => output[String(i + 1)]);
-  if (!translations.every((t) => typeof t === 'string' && t.trim())) {
+  const numbered = texts.map((_, i) => output[String(i + 1)]);
+  if (!numbered.every((t) => typeof t === 'string' && t.trim())) {
     console.warn('Simple Translate: batch reply is missing paragraphs; retrying one by one');
+    return null;
+  }
+  const translations = numbered.map((t, i) => ownTags(t, tags[i]));
+  const foreign = translations.indexOf(null);
+  if (foreign >= 0) {
+    console.warn(`Simple Translate: batch reply looks misaligned (${foreign + 1} holds another paragraph's tags); retrying one by one`);
     return null;
   }
   const problem = misalignment(texts, translations);

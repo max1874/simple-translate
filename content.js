@@ -22,6 +22,13 @@
   ]);
   // Blocks skipped together with everything inside them.
   const SKIP_BLOCK = 'pre, nav, [role="navigation"], code, kbd, samp, [translate="no"], .notranslate, [aria-hidden="true"]';
+  // Inline formatting carried into the translation. The model sees each as a
+  // numbered tag: <x1>words</x1> around text it translates, <x2/> for an
+  // element copied over as is (code, keys, inline images).
+  const PAIRED = new Set(['A', 'B', 'STRONG', 'EM', 'I', 'U', 'S', 'DEL', 'INS', 'MARK', 'SMALL', 'SUB', 'SUP', 'ABBR', 'CITE', 'Q', 'DFN']);
+  const AS_IS = new Set(['CODE', 'KBD', 'SAMP', 'VAR', 'IMG']);
+  const KEEP_AS_IS = '[translate="no"], .notranslate';
+  const TAG = /<(\/?)x(\d+)(\/?)>/g;
   // An inline element holding any of these is scanned like a block. <br> is
   // included because old pages separate paragraphs with <br><br>.
   const BLOCK_DESCENDANT = 'address, article, aside, blockquote, br, dd, details, div, dl, dt, fieldset, figcaption, figure, footer, form, h1, h2, h3, h4, h5, h6, header, hr, li, main, ol, p, pre, section, table, ul';
@@ -76,6 +83,63 @@
     return text;
   }
 
+  // The run's text with its formatting as numbered tags, and the elements
+  // those tags stand for.
+  function markup(nodes) {
+    const parts = [];
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return node.data;
+      if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node) || !node.checkVisibility()) return '';
+      const tag = node.tagName.toUpperCase();
+      if (AS_IS.has(tag) || node.matches(KEEP_AS_IS)) {
+        parts.push(node);
+        return `<x${parts.length}/>`;
+      }
+      if (NO_TEXT.has(tag)) return '';
+      const n = PAIRED.has(tag) ? parts.push(node) : 0;
+      let inner = '';
+      for (const child of node.childNodes) inner += walk(child);
+      return n && inner.trim() ? `<x${n}>${inner}</x${n}>` : inner;
+    };
+    const source = nodes.map(walk).join('').replace(/\s+/g, ' ').trim();
+    return { source, parts };
+  }
+
+  // Builds the translation from the model's tagged text. Unknown or unmatched
+  // tags are dropped; a tag cut off mid-stream is not shown yet.
+  function render(unit, translation) {
+    const fragment = document.createDocumentFragment();
+    const stack = [{ el: fragment, part: null }];
+    const text = translation.replace(/<\/?(x\d*\/?)?$/, '');
+    let last = 0;
+    for (const match of text.matchAll(TAG)) {
+      stack.at(-1).el.append(text.slice(last, match.index));
+      last = match.index + match[0].length;
+      const part = unit.parts[Number(match[2]) - 1];
+      if (!part) continue;
+      if (match[3]) {
+        stack.at(-1).el.append(copy(part, true));
+      } else if (!match[1]) {
+        const el = copy(part, false);
+        stack.at(-1).el.append(el);
+        stack.push({ el, part });
+      } else {
+        const open = stack.findLastIndex((entry) => entry.part === part);
+        if (open > 0) stack.length = open;
+      }
+    }
+    stack.at(-1).el.append(text.slice(last));
+    return fragment;
+  }
+
+  // A copy must not repeat the page's ids.
+  function copy(el, deep) {
+    const clone = el.cloneNode(deep);
+    clone.removeAttribute('id');
+    if (deep) clone.querySelectorAll('[id]').forEach((child) => child.removeAttribute('id'));
+    return clone;
+  }
+
   // Splits a block into runs of inline content. Each run is one paragraph.
   function scan(block) {
     if (seen.has(block)) return;
@@ -113,7 +177,7 @@
     const range = document.createRange();
     range.setStartBefore(nodes[0]);
     range.setEndAfter(nodes[nodes.length - 1]);
-    const unit = { block, nodes, text, range, el: null, dead: false };
+    const unit = { block, nodes, text, ...markup(nodes), range, el: null, dead: false };
     if (!blockUnits.has(block)) blockUnits.set(block, []);
     blockUnits.get(block).push(unit);
     pending.push(unit);
@@ -161,18 +225,18 @@
     let chars = 0;
     for (const [i, unit] of units.entries()) {
       if (skip[i] || unit.dead || !insertTranslation(unit)) continue;
-      if (cache.has(unit.text)) {
-        fill(unit, cache.get(unit.text));
+      if (cache.has(unit.source)) {
+        fill(unit, cache.get(unit.source));
         continue;
       }
       const limit = batch[0]?.onScreen ? BATCH_ITEMS_ON_SCREEN : BATCH_ITEMS;
-      if (batch.length && (batch.length >= limit || unit.onScreen !== batch[0].onScreen || chars + unit.text.length > BATCH_CHARS)) {
+      if (batch.length && (batch.length >= limit || unit.onScreen !== batch[0].onScreen || chars + unit.source.length > BATCH_CHARS)) {
         request(batch, gen);
         batch = [];
         chars = 0;
       }
       batch.push(unit);
-      chars += unit.text.length;
+      chars += unit.source.length;
     }
     if (batch.length) request(batch, gen);
   }
@@ -195,7 +259,11 @@
   function fill(unit, translation) {
     if (unit.dead) return;
     unit.el.classList.remove(`${MARK}-loading`);
-    unit.el.textContent = translation;
+    // A name or title the model returned unchanged would only repeat it.
+    const unchanged = translation.replace(/\s+/g, ' ').trim() === unit.source;
+    unit.el.style.display = unchanged ? 'none' : '';
+    if (unit.parts.length) unit.el.replaceChildren(render(unit, translation));
+    else unit.el.textContent = translation;
   }
 
   // Text arrives while the model writes it; the final reply then overwrites
@@ -229,7 +297,7 @@
     }
     if (gen !== generation) return;
     running++;
-    const reply = await exchange(units.map((u) => u.text), (index, text) => {
+    const reply = await exchange(units.map((u) => u.source), (index, text) => {
       if (gen === generation) fill(units[index], text);
     });
     const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
@@ -243,7 +311,7 @@
     }
     units.forEach((unit, i) => {
       const translation = response.translations[i].trim();
-      cache.set(unit.text, translation);
+      cache.set(unit.source, translation);
       fill(unit, translation);
     });
   }
