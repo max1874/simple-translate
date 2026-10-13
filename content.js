@@ -29,6 +29,8 @@
   const AS_IS = new Set(['CODE', 'KBD', 'SAMP', 'VAR', 'IMG']);
   const KEEP_AS_IS = '[translate="no"], .notranslate';
   const TAG = /<(\/?)x(\d+)(\/?)>/g;
+  // Copied as is, these would load, submit or run a second time.
+  const LIVE = 'iframe, input, select, textarea, button, object, embed, video, audio, form';
   // An inline element holding any of these is scanned like a block. <br> is
   // included because old pages separate paragraphs with <br><br>.
   const BLOCK_DESCENDANT = 'address, article, aside, blockquote, br, dd, details, div, dl, dt, fieldset, figcaption, figure, footer, form, h1, h2, h3, h4, h5, h6, header, hr, li, main, ol, p, pre, section, table, ul';
@@ -87,12 +89,21 @@
   // those tags stand for.
   function markup(nodes) {
     const parts = [];
+    const asIs = new Set();
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) return node.data;
       if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node) || !node.checkVisibility()) return '';
       const tag = node.tagName.toUpperCase();
+      // Only images the size of a word (icons, emoji, formulas); a photo
+      // would appear a second time under the paragraph.
+      if (tag === 'IMG') {
+        const height = node.getBoundingClientRect().height;
+        if (!height || height > 2 * parseFloat(getComputedStyle(node.parentElement).fontSize)) return '';
+      }
       if (AS_IS.has(tag) || node.matches(KEEP_AS_IS)) {
+        if (node.querySelector(LIVE)) return node.textContent;
         parts.push(node);
+        asIs.add(node);
         return `<x${parts.length}/>`;
       }
       if (NO_TEXT.has(tag)) return '';
@@ -102,26 +113,28 @@
       return n && inner.trim() ? `<x${n}>${inner}</x${n}>` : inner;
     };
     const source = nodes.map(walk).join('').replace(/\s+/g, ' ').trim();
-    return { source, parts };
+    return { source, parts, asIs };
   }
 
   // Builds the translation from the model's tagged text. Unknown or unmatched
-  // tags are dropped; a tag cut off mid-stream is not shown yet.
-  function render(unit, translation) {
+  // tags are dropped. An element kept as is is copied whole whichever form of
+  // tag the model used, and whatever the model put inside it is dropped.
+  function render(unit, text) {
     const fragment = document.createDocumentFragment();
     const stack = [{ el: fragment, part: null }];
-    const text = translation.replace(/<\/?(x\d*\/?)?$/, '');
     let last = 0;
     for (const match of text.matchAll(TAG)) {
       stack.at(-1).el.append(text.slice(last, match.index));
       last = match.index + match[0].length;
       const part = unit.parts[Number(match[2]) - 1];
       if (!part) continue;
+      const whole = unit.asIs.has(part);
       if (match[3]) {
-        stack.at(-1).el.append(copy(part, true));
+        if (whole) stack.at(-1).el.append(copy(part, true));
       } else if (!match[1]) {
-        const el = copy(part, false);
-        stack.at(-1).el.append(el);
+        if (whole) stack.at(-1).el.append(copy(part, true));
+        const el = whole ? document.createDocumentFragment() : copy(part, false);
+        if (!whole) stack.at(-1).el.append(el);
         stack.push({ el, part });
       } else {
         const open = stack.findLastIndex((entry) => entry.part === part);
@@ -178,6 +191,8 @@
     range.setStartBefore(nodes[0]);
     range.setEndAfter(nodes[nodes.length - 1]);
     const unit = { block, nodes, text, ...markup(nodes), range, el: null, dead: false };
+    // Only code, keys and the like: nothing to translate.
+    if (!/\p{L}/u.test(unit.source.replace(TAG, ''))) return;
     if (!blockUnits.has(block)) blockUnits.set(block, []);
     blockUnits.get(block).push(unit);
     pending.push(unit);
@@ -256,14 +271,18 @@
     return true;
   }
 
-  function fill(unit, translation) {
+  // Text still being written is shown plain; the formatting is built once,
+  // from the complete translation.
+  function fill(unit, translation, complete = true) {
     if (unit.dead) return;
     unit.el.classList.remove(`${MARK}-loading`);
-    // A name or title the model returned unchanged would only repeat it.
-    const unchanged = translation.replace(/\s+/g, ' ').trim() === unit.source;
-    unit.el.style.display = unchanged ? 'none' : '';
-    if (unit.parts.length) unit.el.replaceChildren(render(unit, translation));
-    else unit.el.textContent = translation;
+    // A name or title the model returned unchanged would only repeat it, and
+    // an empty reply would only leave a gap.
+    const normalized = translation.replace(/\s+/g, ' ').trim();
+    unit.el.style.display = !normalized || normalized === unit.source ? 'none' : '';
+    if (!unit.parts.length) unit.el.textContent = translation;
+    else if (complete) unit.el.replaceChildren(render(unit, translation));
+    else unit.el.textContent = translation.replace(TAG, '').replace(/<\/?(x\d*\/?)?$/, '');
   }
 
   // Text arrives while the model writes it; the final reply then overwrites
@@ -283,7 +302,7 @@
       }
       ports.set(port, settle);
       port.onMessage.addListener((message) => {
-        if (message.type === 'item') onItem(message.index, message.text);
+        if (message.type === 'item') onItem(message.index, message.text, message.complete);
         else settle(message);
       });
       port.onDisconnect.addListener(() => settle({ type: 'error', error: chrome.runtime.lastError?.message ?? 'disconnected' }));
@@ -297,8 +316,8 @@
     }
     if (gen !== generation) return;
     running++;
-    const reply = await exchange(units.map((u) => u.source), (index, text) => {
-      if (gen === generation) fill(units[index], text);
+    const reply = await exchange(units.map((u) => u.source), (index, text, complete) => {
+      if (gen === generation) fill(units[index], text, complete);
     });
     const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
     if (gen !== generation) return;

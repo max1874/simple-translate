@@ -60,7 +60,7 @@ chrome.runtime.onConnect.addListener((port) => {
   };
   port.onMessage.addListener(({ texts }) => {
     hold();
-    translate(texts, (index, text) => post({ type: 'item', index, text }), controller.signal)
+    translate(texts, (index, text, complete) => post({ type: 'item', index, text, complete }), controller.signal)
       .then(
         (translations) => post({ type: 'done', translations }),
         (error) => post({ type: 'error', error: error.message }),
@@ -102,12 +102,13 @@ function release() {
   if (--inFlight === 0) clearInterval(keepAlive);
 }
 
-// onItem(index, text) is called as text arrives: with the growing text of a
-// single paragraph, or with each paragraph of a batch once it is complete.
+// onItem(index, text, complete) is called as text arrives: with the growing
+// text of a single paragraph, or with each paragraph of a batch once it is
+// complete.
 async function translate(texts, onItem = () => {}, signal) {
   const config = await loadConfig();
   if (!isConfigured(config)) throw new Error(chrome.i18n.getMessage('missingConfig'));
-  if (texts.length === 1) return [await translateOne(config, texts[0], (text) => onItem(0, text), signal)];
+  if (texts.length === 1) return [await translateOne(config, texts[0], (text, complete) => onItem(0, text, complete), signal)];
   const batch = await translateBatch(config, texts, onItem, signal);
   // A model that broke the JSON contract gets the paragraphs one by one; their
   // text replaces whatever the batch already showed.
@@ -126,7 +127,7 @@ async function oneByOne(config, texts, onItem, signal) {
   const worker = async () => {
     while (next < texts.length) {
       const i = next++;
-      results[i] = await translateOne(config, texts[i], (t) => onItem(i, t), both);
+      results[i] = await translateOne(config, texts[i], (t, complete) => onItem(i, t, complete), both);
     }
   };
   try {
@@ -183,7 +184,7 @@ function systemPrompt(config, batch, tagged) {
 async function translateOne(config, text, onText, signal) {
   return chat(config, systemPrompt(config, false, TAGGED.test(text)), text, (content) => {
     const visible = withoutThinking(content).trim();
-    if (visible) onText(visible);
+    if (visible) onText(visible, false);
   }, signal);
 }
 
@@ -207,7 +208,7 @@ async function translateBatch(config, texts, onItem, signal) {
       text = ownTags(text, tags[index]);
       if (text === null) continue;
       shown.add(index);
-      onItem(index, text);
+      onItem(index, text, true);
     }
   }, signal);
   const start = reply.indexOf('{');
@@ -262,8 +263,10 @@ function misalignment(texts, translations) {
   // source length stays in a narrow band; a shifted paragraph falls outside.
   // A paragraph returned unchanged (a name, a citation) is in place by
   // definition and would only skew the band, so it is left out.
+  // Lengths without the formatting tags, which are the same in both.
+  const plain = (text) => text.replace(TAGS, '');
   const ratios = texts
-    .map((text, i) => ({ i, ratio: translations[i].length / text.length, size: text.length }))
+    .map((text, i) => ({ i, ratio: plain(translations[i]).length / plain(text).length, size: plain(text).length }))
     .filter((r) => r.size >= RATIO_MIN_CHARS && translations[r.i].trim() !== texts[r.i].trim());
   if (ratios.length < 3) return '';
   const sorted = ratios.map((r) => r.ratio).sort((a, b) => a - b);
