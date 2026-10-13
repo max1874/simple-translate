@@ -1,0 +1,25 @@
+.simple-translate {
+  display: block;
+  margin-top: 0.3em;
+}
+
+.simple-translate-loading {
+  opacity: 0.4;
+}
+
+.simple-translate-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  max-width: 360px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #fff;
+  font: 13px/1.45 system-ui, sans-serif;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}

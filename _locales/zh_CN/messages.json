@@ -1,0 +1,62 @@
+{
+  "extName": {
+    "message": "简单翻译"
+  },
+  "extDescription": {
+    "message": "用你自己的大模型做网页双语对照翻译。一键开关，不收集任何数据。"
+  },
+  "actionTitle": {
+    "message": "翻译当前页面（Alt+A）"
+  },
+  "optionsTitle": {
+    "message": "简单翻译 设置"
+  },
+  "baseUrl": {
+    "message": "API 地址"
+  },
+  "baseUrlHint": {
+    "message": "任何 OpenAI 兼容接口，例如 https://api.openai.com/v1、https://api.deepseek.com、https://openrouter.ai/api/v1、http://localhost:11434/v1"
+  },
+  "apiKey": {
+    "message": "API Key"
+  },
+  "apiKeyHint": {
+    "message": "只保存在这个浏览器里，只发送到上面的 API 地址。Ollama 这类本地服务可以留空。"
+  },
+  "model": {
+    "message": "模型"
+  },
+  "targetLang": {
+    "message": "翻译成"
+  },
+  "extraBody": {
+    "message": "额外请求参数（JSON，可选）"
+  },
+  "extraBodyHint": {
+    "message": "会合并进每次请求体，例如推理模型可填 {\"reasoning_effort\": \"none\"}。"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "test": {
+    "message": "保存并测试"
+  },
+  "saved": {
+    "message": "已保存。"
+  },
+  "testing": {
+    "message": "测试中…"
+  },
+  "permissionDenied": {
+    "message": "没有获得访问该 API 地址的权限，译文请求发不出去。"
+  },
+  "badExtraBody": {
+    "message": "额外请求参数必须是一个 JSON 对象。"
+  },
+  "missingConfig": {
+    "message": "请先填写 API 地址和模型。"
+  },
+  "translateFailed": {
+    "message": "翻译失败"
+  }
+}

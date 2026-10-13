@@ -1,0 +1,62 @@
+{
+  "extName": {
+    "message": "Simple Translate"
+  },
+  "extDescription": {
+    "message": "Bilingual web page translation with your own LLM. One click, no tracking."
+  },
+  "actionTitle": {
+    "message": "Translate this page (Alt+A)"
+  },
+  "optionsTitle": {
+    "message": "Simple Translate settings"
+  },
+  "baseUrl": {
+    "message": "API base URL"
+  },
+  "baseUrlHint": {
+    "message": "Any OpenAI-compatible endpoint, e.g. https://api.openai.com/v1, https://api.deepseek.com, https://openrouter.ai/api/v1, http://localhost:11434/v1"
+  },
+  "apiKey": {
+    "message": "API key"
+  },
+  "apiKeyHint": {
+    "message": "Stored only in this browser and sent only to the API base URL above. Leave empty for local servers such as Ollama."
+  },
+  "model": {
+    "message": "Model"
+  },
+  "targetLang": {
+    "message": "Translate into"
+  },
+  "extraBody": {
+    "message": "Extra request fields (JSON, optional)"
+  },
+  "extraBodyHint": {
+    "message": "Merged into every request body, e.g. {\"reasoning_effort\": \"none\"} for reasoning models."
+  },
+  "save": {
+    "message": "Save"
+  },
+  "test": {
+    "message": "Save and test"
+  },
+  "saved": {
+    "message": "Saved."
+  },
+  "testing": {
+    "message": "Testing…"
+  },
+  "permissionDenied": {
+    "message": "Access to the API host was not granted, so translations cannot be sent there."
+  },
+  "badExtraBody": {
+    "message": "Extra request fields must be a JSON object."
+  },
+  "missingConfig": {
+    "message": "Fill in the API base URL and model first."
+  },
+  "translateFailed": {
+    "message": "Translation failed"
+  }
+}

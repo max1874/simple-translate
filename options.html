@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="optionsTitle"></title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1 data-i18n="optionsTitle"></h1>
+    <form id="form">
+      <label>
+        <span data-i18n="baseUrl"></span>
+        <input name="baseUrl" type="url" required>
+        <small data-i18n="baseUrlHint"></small>
+      </label>
+      <label>
+        <span data-i18n="apiKey"></span>
+        <input name="apiKey" type="password" autocomplete="off">
+        <small data-i18n="apiKeyHint"></small>
+      </label>
+      <label>
+        <span data-i18n="model"></span>
+        <input name="model" required placeholder="gpt-4.1-mini / deepseek-chat / qwen2.5:7b">
+      </label>
+      <label>
+        <span data-i18n="targetLang"></span>
+        <select name="targetLang"></select>
+      </label>
+      <label>
+        <span data-i18n="extraBody"></span>
+        <textarea name="extraBody" rows="3" spellcheck="false"></textarea>
+        <small data-i18n="extraBodyHint"></small>
+      </label>
+      <div class="actions">
+        <button type="submit" data-i18n="save"></button>
+        <button type="button" id="test" data-i18n="test"></button>
+      </div>
+      <output id="status"></output>
+    </form>
+  </main>
+  <script src="common.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
