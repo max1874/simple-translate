@@ -267,10 +267,34 @@
     dispatch(generation);
   }
 
+  // Common characters written differently in simplified and traditional
+  // Chinese, pair by pair.
+  const SIMPLIFIED = /[这们个来为说时会对发经现实应还问题动进过国学长开关门东车书见无产业机种将么与样点数网电话认识让给带声处达头买卖写读语级线结组织计设务报统资质选风险错误据户码页闭环节证历缓论虽]/g;
+  const TRADITIONAL = /[這們個來為說時會對發經現實應還問題動進過國學長開關門東車書見無產業機種將麼與樣點數網電話認識讓給帶聲處達頭買賣寫讀語級線結組織計設務報統資質選風險錯誤據戶碼頁閉環節證歷緩論雖]/g;
+
+  // Chrome's detector calls much plain Chinese "unreliable" (short lines,
+  // a few English terms), so for Chinese, Japanese and Korean the script
+  // decides; elsewhere a confident guess is enough.
   async function alreadyInTarget(text) {
+    const target = languageKey(targetLang);
+    const letters = text.match(/\p{L}/gu)?.length ?? 0;
+    const share = (pattern) => (letters ? (text.match(pattern)?.length ?? 0) / letters : 0);
+    const kana = share(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    const han = share(/\p{Script=Han}/gu);
     const result = await chrome.i18n.detectLanguage(text);
     const top = result.languages?.[0];
-    return Boolean(result.isReliable && top && languageKey(top.language) === languageKey(targetLang));
+    if (target === 'zh' || target === 'zh-Hant') {
+      if (kana > 0.05 || han < 0.5) return false;
+      // The detector says "zh" for both; common characters that differ tell
+      // simplified from traditional. Text with none of them reads as either.
+      const simplified = text.match(SIMPLIFIED)?.length ?? 0;
+      const traditional = text.match(TRADITIONAL)?.length ?? 0;
+      if (simplified === traditional) return true;
+      return (simplified > traditional ? 'zh' : 'zh-Hant') === target;
+    }
+    if (target === 'ja') return kana > 0.05 && kana + han >= 0.5;
+    if (target === 'ko') return share(/\p{Script=Hangul}/gu) >= 0.5;
+    return Boolean(top && languageKey(top.language) === target && (result.isReliable || top.percentage >= 90));
   }
 
   async function flushQueue(units) {
