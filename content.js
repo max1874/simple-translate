@@ -280,7 +280,7 @@
   // Chinese, pair by pair, and kanji forms only Japanese uses.
   const SIMPLIFIED = /[这们个来为说时会对发经现实应还问题动进过国学长开关门东车书见无产业机种将么与样点数网电话认识让给带声处达头买卖写读语级线结组织计设务报统资质选风险错误据户码页闭环节证历缓论虽闻马鸟鱼龙鸡飞医药乐欢观视览听华汉际价优众从复变战岁圆团园图场坏块壳备夺奋妇妈孙宁宝宾层岛币师帮广庆库张弹归录彻忆态总恶惊惯执扩扫抢护担拥择挂换损摄敌断旧显晓术杀杂权条极构枪标树桥检楼欧毕汇沟济浅测浓热灯灵烦爱爷状独猎献盖盘础确礼离积称稳穷竞笔简类纪约纸练细终绍绝继续维综编罗职联肃胜脑脸艺荣获虑补装规誉议讯许评诉词试询详课调谈谢负责败货购费贸赛赵践转轮软轻辑输边迁运远连迟递逻遗释钟钱铁银锁镜间阅队阳阶陆难项须顺预领频颜饭馆驱验鲜齐]/g;
   const TRADITIONAL = /[這們個來為說時會對發經現實應還問題動進過國學長開關門東車書見無產業機種將麼與樣點數網電話認識讓給帶聲處達頭買賣寫讀語級線結組織計設務報統資質選風險錯誤據戶碼頁閉環節證歷緩論雖聞馬鳥魚龍雞飛醫藥樂歡觀視覽聽華漢際價優眾從復變戰歲圓團園圖場壞塊殼備奪奮婦媽孫寧寶賓層島幣師幫廣慶庫張彈歸錄徹憶態總惡驚慣執擴掃搶護擔擁擇掛換損攝敵斷舊顯曉術殺雜權條極構槍標樹橋檢樓歐畢匯溝濟淺測濃熱燈靈煩愛爺狀獨獵獻蓋盤礎確禮離積稱穩窮競筆簡類紀約紙練細終紹絕繼續維綜編羅職聯肅勝腦臉藝榮獲慮補裝規譽議訊許評訴詞試詢詳課調談謝負責敗貨購費貿賽趙踐轉輪軟輕輯輸邊遷運遠連遲遞邏遺釋鐘錢鐵銀鎖鏡間閱隊陽階陸難項須順預領頻顏飯館驅驗鮮齊]/g;
-  const JAPANESE_KANJI = /[経済図駅売円県広歩戦気変発両労単営楽薬対様関帰権険験読説実]/;
+  const JAPANESE_KANJI = /[経済図駅売円県広歩戦気変発両労単営楽薬対様関帰権険験読説実]/g;
   const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
 
   // Chrome's detector calls much plain Chinese "unreliable" (short lines,
@@ -294,11 +294,13 @@
     const target = languageKey(targetLang);
     const count = (pattern) => text.match(pattern)?.length ?? 0;
     const han = count(/\p{Script=Han}/gu);
-    const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}ー]/gu);
     const hangul = count(/\p{Script=Hangul}/gu);
     const words = han + kana + hangul + count(/[^\P{L}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu);
     if (!words) return false;
-    const japanese = kana > 0.05 * words || JAPANESE_KANJI.test(text);
+    // Kana, or many kanji in forms only Japanese uses: one such character
+    // also appears in Hong Kong usage (説) or a quoted Japanese name.
+    const japanese = kana > 0.05 * words || count(JAPANESE_KANJI) >= Math.max(2, 0.2 * han);
     if (target === 'zh' || target === 'zh-Hant') {
       if (japanese || han < 0.5 * words) return false;
       // Text with none of the differing characters reads the same in both.
@@ -383,27 +385,39 @@
   // Runs change() and scrolls back by however far it moved the line being
   // read, so translations opening or closing above it move the page up
   // instead of pushing the text out from under the reader's eyes.
-  // The reader's own scrolling, told apart from ours: ours leaves the window
-  // exactly where we put it, and only undoes a layout shift, so it needs no
-  // new check of what is on screen.
+  // The reader scrolling: known from input, since carousels, chat panes and
+  // Chrome's own scroll anchoring scroll too. Smooth scrolling runs on after
+  // the input, hence the margin.
+  const READER_SCROLL_MS = 600;
   let userScrollAt = -Infinity;
-  let ownScrollY = NaN;
+  const SCROLL_KEYS = new Set([' ', 'PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown']);
+
+  function onScrollInput(event) {
+    if (event.type === 'keydown' && !SCROLL_KEYS.has(event.key)) return;
+    userScrollAt = performance.now();
+  }
+
+  // Our own scroll leaves the window exactly where we put it and only undoes
+  // a layout shift, so it needs no new check of what is on screen.
+  let ownScroll = { y: NaN, at: -Infinity };
 
   function onScroll(event) {
-    const window = event.target === document || event.target === document.scrollingElement;
-    if (window && Math.abs(scrollY - ownScrollY) < 1) {
-      ownScrollY = NaN;
-      return;
-    }
-    userScrollAt = performance.now();
+    const isWindow = event.target === document || event.target === document.scrollingElement;
+    if (isWindow && Math.abs(scrollY - ownScroll.y) < 1 && performance.now() - ownScroll.at < 100) return;
     scheduleCheck();
   }
 
-  function keepReadingPosition(change) {
-    // Not while the reader is scrolling, which our scroll would cut short,
-    // nor on pages that scroll inside a container rather than the window.
+  // Whether the window is what scrolls: not on pages that scroll inside a
+  // container, or that keep the root from scrolling.
+  function windowScrolls() {
     const scroller = document.scrollingElement;
-    if (performance.now() - userScrollAt < 300 || !scroller || scroller.scrollHeight <= innerHeight + 1) {
+    if (!scroller || scroller.scrollHeight <= innerHeight + 1) return false;
+    return getComputedStyle(scroller).overflowY !== 'hidden' && getComputedStyle(document.body).overflowY !== 'hidden';
+  }
+
+  function keepReadingPosition(change) {
+    // Not while the reader is scrolling, which our scroll would cut short.
+    if (performance.now() - userScrollAt < READER_SCROLL_MS || !windowScrolls()) {
       change();
       return;
     }
@@ -414,7 +428,7 @@
     const moved = point.getBoundingClientRect().top - before;
     if (Math.abs(moved) >= 1) {
       scrollBy({ top: moved, behavior: 'instant' });
-      ownScrollY = scrollY;
+      ownScroll = { y: scrollY, at: performance.now() };
     }
   }
 
@@ -523,17 +537,22 @@
 
   async function send(units, gen) {
     running++;
+    const finished = new Set();
     const reply = await exchange(units.map((u) => u.source), (index, text, complete) => {
-      if (gen === generation) fill(units[index], text, complete);
+      if (gen !== generation) return;
+      if (complete) finished.add(units[index]);
+      fill(units[index], text, complete);
     }, (port) => inflight.set(units, port));
     inflight.delete(units);
     const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
     if (gen !== generation) return;
     running--;
     if (reply.type === 'cancelled') {
-      // Drop what was shown so far; dispatch() is what cancelled it.
-      for (const unit of units) toPaint.delete(unit);
-      requeue(units);
+      // dispatch() cancelled it. Paragraphs already translated keep their
+      // translation; the rest drop what was shown and wait again.
+      const unfinished = units.filter((unit) => !finished.has(unit));
+      for (const unit of unfinished) toPaint.delete(unit);
+      keepReadingPosition(() => requeue(unfinished));
       dispatch(gen);
       return;
     }
@@ -641,6 +660,7 @@
       attributeFilter: ['class', 'style', 'hidden', 'open'],
     });
     addEventListener('scroll', onScroll, { capture: true, passive: true });
+    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown']) addEventListener(type, onScrollInput, { capture: true, passive: true });
     addEventListener('resize', scheduleCheck, { passive: true });
   }
 
@@ -660,6 +680,7 @@
     paintFrame = 0;
     toPaint = new Map();
     removeEventListener('scroll', onScroll, { capture: true });
+    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown']) removeEventListener(type, onScrollInput, { capture: true });
     removeEventListener('resize', scheduleCheck);
     clearTimeout(checkTimer);
     checkTimer = 0;
