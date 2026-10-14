@@ -7,12 +7,17 @@
   globalThis.__simpleTranslate?.stop();
 
   const MARK = 'simple-translate';
-  // Paragraphs on screen go in small batches so the first ones come back
-  // sooner; the rest in larger ones to save requests.
+  // Paragraphs on screen go in small batches, written in parallel, so the
+  // screen fills sooner (a model writes one batch's paragraphs one after
+  // another); the rest in larger ones to save requests.
   const BATCH_ITEMS_ON_SCREEN = 4;
+  const BATCH_CHARS_ON_SCREEN = 1000;
   const BATCH_ITEMS = 8;
   const BATCH_CHARS = 2500;
   const MAX_REQUESTS = 6;
+  // On screen, paragraphs of prose go before short items such as menu and
+  // table-of-contents entries: they are what is being read.
+  const PROSE_CHARS = 80;
   const MAX_TEXT = 6000;
 
   // Elements whose text is never sent for translation.
@@ -44,6 +49,7 @@
   let pending = [];
   let checkTimer = 0;
   let running = 0;
+  // Batches waiting for a free request.
   let waiting = [];
   // Open translation ports, each with the function that settles its request.
   let ports = new Map();
@@ -69,6 +75,7 @@
     const display = getComputedStyle(el).display;
     if (display === 'none') return el.matches(BLOCK_DESCENDANT) ? 'opaque-block' : 'opaque-inline';
     const inline = display.startsWith('inline') || display === 'ruby';
+    if (isHiddenFromSight(el)) return inline ? 'opaque-inline' : 'opaque-block';
     if (NO_TEXT.has(el.tagName.toUpperCase())) return inline ? 'opaque-inline' : 'opaque-block';
     if (inline && !el.querySelector(BLOCK_DESCENDANT)) {
       return el.isContentEditable || el.matches('[aria-hidden="true"]') ? 'opaque-inline' : 'inline';
@@ -76,10 +83,37 @@
     return el.isContentEditable || el.matches(SKIP_BLOCK) ? 'opaque-block' : 'block';
   }
 
+  // Text kept for screen readers only: moved off the page or shrunk to a
+  // pixel ("Jump to content", "Jump up to:"). It is not read on screen, so
+  // it is not translated, and its position says nothing about the paragraph's.
+  function isHiddenFromSight(el) {
+    const position = getComputedStyle(el).position;
+    if (position !== 'absolute' && position !== 'fixed') return false;
+    const rect = el.getBoundingClientRect();
+    return (rect.width <= 1 && rect.height <= 1) || isOffPage(rect);
+  }
+
+  function isOffPage(rect) {
+    return rect.bottom + scrollY <= 0 || rect.right + scrollX <= 0;
+  }
+
+  // Where a paragraph is: the union of its boxes, leaving out text hidden
+  // off the page, which would otherwise stretch it across the whole page.
+  function unitRect(unit) {
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const rect of unit.range.getClientRects()) {
+      if ((rect.width <= 1 && rect.height <= 1) || isOffPage(rect)) continue;
+      top = Math.min(top, rect.top);
+      bottom = Math.max(bottom, rect.bottom);
+    }
+    return top === Infinity ? { top: 0, bottom: 0, width: 0, height: 0 } : { top, bottom, width: 1, height: bottom - top };
+  }
+
   function textOf(node) {
     if (node.nodeType === Node.TEXT_NODE) return node.data;
     if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node)) return '';
-    if (NO_TEXT.has(node.tagName.toUpperCase()) || !node.checkVisibility()) return '';
+    if (NO_TEXT.has(node.tagName.toUpperCase()) || !node.checkVisibility() || isHiddenFromSight(node)) return '';
     let text = '';
     for (const child of node.childNodes) text += textOf(child);
     return text;
@@ -92,7 +126,7 @@
     const asIs = new Set();
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) return node.data;
-      if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node) || !node.checkVisibility()) return '';
+      if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node) || !node.checkVisibility() || isHiddenFromSight(node)) return '';
       const tag = node.tagName.toUpperCase();
       // Only images the size of a word (icons, emoji, formulas); a photo
       // would appear a second time under the paragraph.
@@ -203,19 +237,24 @@
     checkTimer ||= setTimeout(checkVisible, 100);
   }
 
-  // Queues paragraphs from one screen above the viewport to two screens below,
-  // those on screen first, then below it, then above it.
+  // From one screen above the viewport to two screens below.
+  function isNear(rect) {
+    return (rect.width || rect.height) && rect.bottom >= -innerHeight && rect.top <= innerHeight * 3;
+  }
+
+  // Queues the paragraphs near the viewport: prose on screen first, then
+  // short items on screen, then below it, then above it.
   function checkVisible() {
     checkTimer = 0;
     const rest = [];
     const visible = [];
     for (const unit of pending) {
       if (unit.dead || !unit.nodes[0].isConnected) continue;
-      const rect = unit.range.getBoundingClientRect();
-      const shown = rect.width || rect.height;
-      if (shown && rect.bottom >= -innerHeight && rect.top <= innerHeight * 3) {
+      const rect = unitRect(unit);
+      if (isNear(rect)) {
         unit.onScreen = rect.bottom > 0 && rect.top < innerHeight;
-        unit.order = unit.onScreen ? rect.top : rect.top > 0 ? innerHeight + rect.top : 4 * innerHeight - rect.bottom;
+        const prose = unit.text.length >= PROSE_CHARS;
+        unit.order = unit.onScreen ? (prose ? 0 : innerHeight) + rect.top : rect.top > 0 ? innerHeight + rect.top : 4 * innerHeight - rect.bottom;
         visible.push(unit);
       } else {
         rest.push(unit);
@@ -224,6 +263,8 @@
     pending = rest;
     visible.sort((a, b) => a.order - b.order);
     if (visible.length) flushQueue(visible);
+    // The reader may have moved away from batches still waiting.
+    dispatch(generation);
   }
 
   async function alreadyInTarget(text) {
@@ -244,8 +285,8 @@
         fill(unit, cache.get(unit.source));
         continue;
       }
-      const limit = batch[0]?.onScreen ? BATCH_ITEMS_ON_SCREEN : BATCH_ITEMS;
-      if (batch.length && (batch.length >= limit || unit.onScreen !== batch[0].onScreen || chars + unit.source.length > BATCH_CHARS)) {
+      const [items, size] = batch[0]?.onScreen ? [BATCH_ITEMS_ON_SCREEN, BATCH_CHARS_ON_SCREEN] : [BATCH_ITEMS, BATCH_CHARS];
+      if (batch.length && (batch.length >= items || unit.onScreen !== batch[0].onScreen || chars + unit.source.length > size)) {
         request(batch, gen);
         batch = [];
         chars = 0;
@@ -284,10 +325,39 @@
     paintFrame ||= requestAnimationFrame(paint);
   }
 
+  // The line being read, as a point in the text: its position before and after
+  // a change tells how far the change moved it.
+  function readingPoint() {
+    for (const y of [0.33, 0.25, 0.45, 0.15, 0.6]) {
+      for (const x of [0.5, 0.3, 0.7]) {
+        const range = document.caretRangeFromPoint?.(innerWidth * x, innerHeight * y);
+        const node = range?.startContainer;
+        if (node?.nodeType === Node.TEXT_NODE && !node.parentElement.closest(`.${MARK}`)) return range;
+      }
+    }
+    return null;
+  }
+
+  // Runs change() and scrolls back by however far it moved the line being
+  // read, so translations opening or closing above it move the page up
+  // instead of pushing the text out from under the reader's eyes.
+  function keepReadingPosition(change) {
+    const point = readingPoint();
+    const before = point?.getBoundingClientRect().top;
+    change();
+    if (!point?.startContainer.isConnected) return;
+    const moved = point.getBoundingClientRect().top - before;
+    if (Math.abs(moved) >= 1) scrollBy({ top: moved, behavior: 'instant' });
+  }
+
   function paint() {
     paintFrame = 0;
     const units = toPaint;
     toPaint = new Map();
+    keepReadingPosition(() => paintUnits(units));
+  }
+
+  function paintUnits(units) {
     for (const [unit, { translation, complete }] of units) {
       if (unit.dead) continue;
       // A tag cut off mid-stream is not shown yet.
@@ -329,11 +399,44 @@
     });
   }
 
-  async function request(units, gen) {
-    while (gen === generation && running >= MAX_REQUESTS) {
-      await new Promise((resolve) => waiting.push(resolve));
-    }
+  function request(units, gen) {
     if (gen !== generation) return;
+    waiting.push(units);
+    dispatch(gen);
+  }
+
+  // How far a batch is from the viewport, in pixels; Infinity once it is no
+  // longer near.
+  function distance(units) {
+    let nearest = Infinity;
+    for (const unit of units) {
+      if (unit.dead || !unit.nodes[0].isConnected) continue;
+      const rect = unitRect(unit);
+      if (!isNear(rect)) continue;
+      nearest = Math.min(nearest, rect.bottom < 0 ? -rect.bottom : Math.max(0, rect.top - innerHeight));
+    }
+    return nearest;
+  }
+
+  // Sends waiting batches while requests are free, nearest to the viewport
+  // first. Batches the reader has scrolled far away from go back to the
+  // pending paragraphs, to be queued again if the reader returns.
+  function dispatch(gen) {
+    if (gen !== generation || !waiting.length) return;
+    const scored = waiting.map((units) => ({ units, distance: distance(units) }));
+    const far = scored.filter((b) => b.distance === Infinity);
+    for (const { units } of far) {
+      for (const unit of units) {
+        unit.el?.remove();
+        unit.el = null;
+        if (!unit.dead) pending.push(unit);
+      }
+    }
+    waiting = scored.filter((b) => b.distance !== Infinity).sort((a, b) => a.distance - b.distance).map((b) => b.units);
+    while (running < MAX_REQUESTS && waiting.length) send(waiting.shift(), gen);
+  }
+
+  async function send(units, gen) {
     running++;
     const reply = await exchange(units.map((u) => u.source), (index, text, complete) => {
       if (gen === generation) fill(units[index], text, complete);
@@ -341,7 +444,7 @@
     const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
     if (gen !== generation) return;
     running--;
-    waiting.shift()?.();
+    dispatch(gen);
     if (!response.ok) {
       for (const unit of units) unit.el.remove();
       toast(`${chrome.i18n.getMessage('translateFailed')}: ${response.error}`);
@@ -433,6 +536,9 @@
     targetLang = config.targetLang;
     on = true;
     scan(document.body);
+    // The first screen goes out now rather than after the usual pause.
+    clearTimeout(checkTimer);
+    checkVisible();
     // The whole document, so a page that replaces <body> is still followed.
     mutations.observe(document.documentElement, {
       childList: true,
@@ -449,7 +555,7 @@
     on = false;
     generation++;
     running = 0;
-    waiting.splice(0).forEach((resolve) => resolve());
+    waiting = [];
     // Disconnecting aborts the model request in the service worker.
     for (const [port, settle] of ports) {
       port.disconnect();
@@ -465,7 +571,7 @@
     checkTimer = 0;
     clearTimeout(rescanTimer);
     rescanTimer = 0;
-    document.querySelectorAll(`.${MARK}`).forEach((el) => el.remove());
+    keepReadingPosition(() => document.querySelectorAll(`.${MARK}`).forEach((el) => el.remove()));
     seen = new WeakSet();
     blockUnits = new WeakMap();
     pending = [];
