@@ -3,8 +3,48 @@
   margin-top: 0.3em;
 }
 
+/* Waiting: a small spinner at the end of the paragraph's last line. It shows
+   only if the wait lasts, so a quick reply or a cached one does not flash it. */
 .simple-translate-loading {
-  opacity: 0.4;
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin: 0 0 0 0.4em;
+  vertical-align: -0.02em;
+  border: 0.12em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.3;
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .simple-translate-loading {
+    opacity: 0;
+    animation: simple-translate-show 0.2s 0.4s forwards, simple-translate-spin 0.8s linear infinite;
+  }
+
+  .simple-translate-in {
+    animation: simple-translate-in 0.25s ease-out;
+  }
+}
+
+@keyframes simple-translate-show {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@keyframes simple-translate-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes simple-translate-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .simple-translate-toast {

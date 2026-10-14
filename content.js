@@ -258,31 +258,50 @@
 
   // The page may have moved or removed the paragraph while its language was
   // being detected; such a unit is dropped and picked up again by rescan.
+  // Until text arrives the element is a small spinner at the end of the
+  // paragraph's last line, so starting a translation does not push the page
+  // down; the line for the translation opens when its first words arrive.
   function insertTranslation(unit) {
     if (!unit.nodes.every((n) => n.parentNode === unit.block)) return false;
     const el = document.createElement('span');
     el.className = `${MARK} ${MARK}-loading`;
     el.lang = targetLang;
     el.dir = 'auto';
-    el.textContent = '…';
     const last = unit.nodes[unit.nodes.length - 1];
     unit.block.insertBefore(el, last.nextSibling);
     unit.el = el;
     return true;
   }
 
-  // Text still being written is shown plain; the formatting is built once,
-  // from the complete translation.
+  // Text arrives many times a second while the model writes; the page is
+  // updated at most once per frame.
+  let toPaint = new Map();
+  let paintFrame = 0;
+
   function fill(unit, translation, complete = true) {
     if (unit.dead) return;
-    unit.el.classList.remove(`${MARK}-loading`);
-    // A name or title the model returned unchanged would only repeat it, and
-    // an empty reply would only leave a gap.
-    const normalized = translation.replace(/\s+/g, ' ').trim();
-    unit.el.style.display = !normalized || normalized === unit.source ? 'none' : '';
-    if (!unit.parts.length) unit.el.textContent = translation;
-    else if (complete) unit.el.replaceChildren(render(unit, translation));
-    else unit.el.textContent = translation.replace(TAG, '').replace(/<\/?(x\d*\/?)?$/, '');
+    toPaint.set(unit, { translation, complete });
+    paintFrame ||= requestAnimationFrame(paint);
+  }
+
+  function paint() {
+    paintFrame = 0;
+    const units = toPaint;
+    toPaint = new Map();
+    for (const [unit, { translation, complete }] of units) {
+      if (unit.dead) continue;
+      // A tag cut off mid-stream is not shown yet.
+      const text = complete ? translation : translation.replace(/<\/?(x\d*\/?)?$/, '');
+      // A name or title the model returned unchanged would only repeat it, and
+      // an empty reply would only leave a gap.
+      const normalized = text.replace(/\s+/g, ' ').trim();
+      const hidden = !normalized || normalized === unit.source;
+      if (hidden && !complete) continue;
+      if (unit.el.classList.contains(`${MARK}-loading`)) unit.el.classList.replace(`${MARK}-loading`, `${MARK}-in`);
+      unit.el.style.display = hidden ? 'none' : '';
+      if (unit.parts.length) unit.el.replaceChildren(render(unit, text));
+      else unit.el.textContent = text;
+    }
   }
 
   // Text arrives while the model writes it; the final reply then overwrites
@@ -437,6 +456,9 @@
       settle({ type: 'error', error: 'stopped' });
     }
     mutations.disconnect();
+    cancelAnimationFrame(paintFrame);
+    paintFrame = 0;
+    toPaint = new Map();
     removeEventListener('scroll', scheduleCheck, { capture: true });
     removeEventListener('resize', scheduleCheck);
     clearTimeout(checkTimer);

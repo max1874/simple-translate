@@ -188,20 +188,35 @@ async function translateOne(config, text, onText, signal) {
   }, signal);
 }
 
-// A `"key": "value"` pair whose closing quote has arrived.
+// A `"key": "value"` pair whose closing quote has arrived, and the pair still
+// being written at the end of the reply.
 const COMPLETE_ENTRY = /"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+const OPEN_ENTRY = /"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)\\?$/;
+
+// A JSON string body, possibly cut off inside an escape.
+function decodePartial(raw) {
+  for (let cut = 0; cut <= 6 && cut <= raw.length; cut++) {
+    try {
+      return JSON.parse(`"${raw.slice(0, raw.length - cut)}"`);
+    } catch {}
+  }
+  return null;
+}
 
 async function translateBatch(config, texts, onItem, signal) {
   const tags = numberTags(texts);
   const input = Object.fromEntries(tags.map(({ numbered }, i) => [String(i + 1), numbered]));
   const shown = new Set();
   const reply = await chat(config, systemPrompt(config, true, texts.some((t) => TAGGED.test(t))), JSON.stringify(input, null, 1), (content) => {
-    for (const [, key, raw] of withoutThinking(content).matchAll(COMPLETE_ENTRY)) {
-      const index = Number(key) - 1;
+    const visible = withoutThinking(content);
+    let end = 0;
+    for (const match of visible.matchAll(COMPLETE_ENTRY)) {
+      end = match.index + match[0].length;
+      const index = Number(match[1]) - 1;
       if (shown.has(index) || index < 0 || index >= texts.length) continue;
       let text;
       try {
-        text = JSON.parse(`"${raw}"`);
+        text = JSON.parse(`"${match[2]}"`);
       } catch {
         continue;
       }
@@ -210,6 +225,14 @@ async function translateBatch(config, texts, onItem, signal) {
       shown.add(index);
       onItem(index, text, true);
     }
+    // The paragraph being written, so a long one shows as it grows.
+    const open = visible.slice(end).match(OPEN_ENTRY);
+    if (!open) return;
+    const index = Number(open[1]) - 1;
+    if (shown.has(index) || index < 0 || index >= texts.length) return;
+    const partial = decodePartial(open[2]);
+    const text = partial && ownTags(partial, tags[index]);
+    if (text?.trim()) onItem(index, text, false);
   }, signal);
   const start = reply.indexOf('{');
   const end = reply.lastIndexOf('}');
