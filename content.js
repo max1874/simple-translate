@@ -49,8 +49,9 @@
   let pending = [];
   let checkTimer = 0;
   let running = 0;
-  // Batches waiting for a free request.
+  // Batches waiting for a free request, and those sent, with their ports.
   let waiting = [];
+  let inflight = new Map();
   // Open translation ports, each with the function that settles its request.
   let ports = new Map();
   let dirty = new Set();
@@ -87,14 +88,21 @@
   // pixel ("Jump to content", "Jump up to:"). It is not read on screen, so
   // it is not translated, and its position says nothing about the paragraph's.
   function isHiddenFromSight(el) {
-    const position = getComputedStyle(el).position;
-    if (position !== 'absolute' && position !== 'fixed') return false;
+    const style = getComputedStyle(el);
+    if (style.position !== 'absolute' && style.position !== 'fixed') return false;
     const rect = el.getBoundingClientRect();
-    return (rect.width <= 1 && rect.height <= 1) || isOffPage(rect);
+    // A tiny box hides text only if it is clipped; an empty wrapper of
+    // positioned children is also 0x0.
+    const clipped = style.overflow !== 'visible' || style.clip !== 'auto' || style.clipPath !== 'none';
+    return (rect.width <= 1 && rect.height <= 1 && clipped) || isOffPage(rect);
   }
 
+  // Far beyond the top or left edge of the document (top: -9999px and the
+  // like), not merely scrolled out of an inner container's view.
+  const OFF_PAGE = 900;
+
   function isOffPage(rect) {
-    return rect.bottom + scrollY <= 0 || rect.right + scrollX <= 0;
+    return rect.bottom + scrollY < -OFF_PAGE || rect.right + Math.max(0, scrollX) < -OFF_PAGE;
   }
 
   // Where a paragraph is: the union of its boxes, leaving out text hidden
@@ -253,7 +261,8 @@
       const rect = unitRect(unit);
       if (isNear(rect)) {
         unit.onScreen = rect.bottom > 0 && rect.top < innerHeight;
-        const prose = unit.text.length >= PROSE_CHARS;
+        // A CJK character carries about as much as a word.
+        const prose = unit.text.length + 1.5 * (unit.text.match(CJK)?.length ?? 0) >= PROSE_CHARS;
         unit.order = unit.onScreen ? (prose ? 0 : innerHeight) + rect.top : rect.top > 0 ? innerHeight + rect.top : 4 * innerHeight - rect.bottom;
         visible.push(unit);
       } else {
@@ -268,33 +277,40 @@
   }
 
   // Common characters written differently in simplified and traditional
-  // Chinese, pair by pair.
-  const SIMPLIFIED = /[这们个来为说时会对发经现实应还问题动进过国学长开关门东车书见无产业机种将么与样点数网电话认识让给带声处达头买卖写读语级线结组织计设务报统资质选风险错误据户码页闭环节证历缓论虽]/g;
-  const TRADITIONAL = /[這們個來為說時會對發經現實應還問題動進過國學長開關門東車書見無產業機種將麼與樣點數網電話認識讓給帶聲處達頭買賣寫讀語級線結組織計設務報統資質選風險錯誤據戶碼頁閉環節證歷緩論雖]/g;
+  // Chinese, pair by pair, and kanji forms only Japanese uses.
+  const SIMPLIFIED = /[这们个来为说时会对发经现实应还问题动进过国学长开关门东车书见无产业机种将么与样点数网电话认识让给带声处达头买卖写读语级线结组织计设务报统资质选风险错误据户码页闭环节证历缓论虽闻马鸟鱼龙鸡飞医药乐欢观视览听华汉际价优众从复变战岁圆团园图场坏块壳备夺奋妇妈孙宁宝宾层岛币师帮广庆库张弹归录彻忆态总恶惊惯执扩扫抢护担拥择挂换损摄敌断旧显晓术杀杂权条极构枪标树桥检楼欧毕汇沟济浅测浓热灯灵烦爱爷状独猎献盖盘础确礼离积称稳穷竞笔简类纪约纸练细终绍绝继续维综编罗职联肃胜脑脸艺荣获虑补装规誉议讯许评诉词试询详课调谈谢负责败货购费贸赛赵践转轮软轻辑输边迁运远连迟递逻遗释钟钱铁银锁镜间阅队阳阶陆难项须顺预领频颜饭馆驱验鲜齐]/g;
+  const TRADITIONAL = /[這們個來為說時會對發經現實應還問題動進過國學長開關門東車書見無產業機種將麼與樣點數網電話認識讓給帶聲處達頭買賣寫讀語級線結組織計設務報統資質選風險錯誤據戶碼頁閉環節證歷緩論雖聞馬鳥魚龍雞飛醫藥樂歡觀視覽聽華漢際價優眾從復變戰歲圓團園圖場壞塊殼備奪奮婦媽孫寧寶賓層島幣師幫廣慶庫張彈歸錄徹憶態總惡驚慣執擴掃搶護擔擁擇掛換損攝敵斷舊顯曉術殺雜權條極構槍標樹橋檢樓歐畢匯溝濟淺測濃熱燈靈煩愛爺狀獨獵獻蓋盤礎確禮離積稱穩窮競筆簡類紀約紙練細終紹絕繼續維綜編羅職聯肅勝腦臉藝榮獲慮補裝規譽議訊許評訴詞試詢詳課調談謝負責敗貨購費貿賽趙踐轉輪軟輕輯輸邊遷運遠連遲遞邏遺釋鐘錢鐵銀鎖鏡間閱隊陽階陸難項須順預領頻顏飯館驅驗鮮齊]/g;
+  const JAPANESE_KANJI = /[経済図駅売円県広歩戦気変発両労単営楽薬対様関帰権険験読説実]/;
+  const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
 
   // Chrome's detector calls much plain Chinese "unreliable" (short lines,
-  // a few English terms), so for Chinese, Japanese and Korean the script
-  // decides; elsewhere a confident guess is enough.
+  // a few English terms) and says "zh" for simplified and traditional alike,
+  // so for Chinese, Japanese and Korean the script decides. Shares are of
+  // words: each CJK character counts as one, and so does each run of other
+  // letters (an English term in a Chinese sentence is one word, not ten).
+  // Other targets need a reliable guess: short labels get confident wrong
+  // ones ("Inicio" as Italian, "Settings" as Malay).
   async function alreadyInTarget(text) {
     const target = languageKey(targetLang);
-    const letters = text.match(/\p{L}/gu)?.length ?? 0;
-    const share = (pattern) => (letters ? (text.match(pattern)?.length ?? 0) / letters : 0);
-    const kana = share(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
-    const han = share(/\p{Script=Han}/gu);
+    const count = (pattern) => text.match(pattern)?.length ?? 0;
+    const han = count(/\p{Script=Han}/gu);
+    const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    const hangul = count(/\p{Script=Hangul}/gu);
+    const words = han + kana + hangul + count(/[^\P{L}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu);
+    if (!words) return false;
+    const japanese = kana > 0.05 * words || JAPANESE_KANJI.test(text);
+    if (target === 'zh' || target === 'zh-Hant') {
+      if (japanese || han < 0.5 * words) return false;
+      // Text with none of the differing characters reads the same in both.
+      const simplified = count(SIMPLIFIED);
+      const traditional = count(TRADITIONAL);
+      return simplified === traditional || (simplified > traditional ? 'zh' : 'zh-Hant') === target;
+    }
+    if (target === 'ja') return japanese && han + kana >= 0.5 * words;
+    if (target === 'ko') return hangul >= 0.5 * words;
     const result = await chrome.i18n.detectLanguage(text);
     const top = result.languages?.[0];
-    if (target === 'zh' || target === 'zh-Hant') {
-      if (kana > 0.05 || han < 0.5) return false;
-      // The detector says "zh" for both; common characters that differ tell
-      // simplified from traditional. Text with none of them reads as either.
-      const simplified = text.match(SIMPLIFIED)?.length ?? 0;
-      const traditional = text.match(TRADITIONAL)?.length ?? 0;
-      if (simplified === traditional) return true;
-      return (simplified > traditional ? 'zh' : 'zh-Hant') === target;
-    }
-    if (target === 'ja') return kana > 0.05 && kana + han >= 0.5;
-    if (target === 'ko') return share(/\p{Script=Hangul}/gu) >= 0.5;
-    return Boolean(top && languageKey(top.language) === target && (result.isReliable || top.percentage >= 90));
+    return Boolean(result.isReliable && top && languageKey(top.language) === target);
   }
 
   async function flushQueue(units) {
@@ -311,14 +327,16 @@
       }
       const [items, size] = batch[0]?.onScreen ? [BATCH_ITEMS_ON_SCREEN, BATCH_CHARS_ON_SCREEN] : [BATCH_ITEMS, BATCH_CHARS];
       if (batch.length && (batch.length >= items || unit.onScreen !== batch[0].onScreen || chars + unit.source.length > size)) {
-        request(batch, gen);
+        waiting.push(batch);
         batch = [];
         chars = 0;
       }
       batch.push(unit);
       chars += unit.source.length;
     }
-    if (batch.length) request(batch, gen);
+    if (batch.length) waiting.push(batch);
+    // Once for all the new batches, after the page has been written to.
+    dispatch(gen);
   }
 
   // The page may have moved or removed the paragraph while its language was
@@ -365,20 +383,56 @@
   // Runs change() and scrolls back by however far it moved the line being
   // read, so translations opening or closing above it move the page up
   // instead of pushing the text out from under the reader's eyes.
+  // The reader's own scrolling, told apart from ours: ours leaves the window
+  // exactly where we put it, and only undoes a layout shift, so it needs no
+  // new check of what is on screen.
+  let userScrollAt = -Infinity;
+  let ownScrollY = NaN;
+
+  function onScroll(event) {
+    const window = event.target === document || event.target === document.scrollingElement;
+    if (window && Math.abs(scrollY - ownScrollY) < 1) {
+      ownScrollY = NaN;
+      return;
+    }
+    userScrollAt = performance.now();
+    scheduleCheck();
+  }
+
   function keepReadingPosition(change) {
+    // Not while the reader is scrolling, which our scroll would cut short,
+    // nor on pages that scroll inside a container rather than the window.
+    const scroller = document.scrollingElement;
+    if (performance.now() - userScrollAt < 300 || !scroller || scroller.scrollHeight <= innerHeight + 1) {
+      change();
+      return;
+    }
     const point = readingPoint();
     const before = point?.getBoundingClientRect().top;
     change();
     if (!point?.startContainer.isConnected) return;
     const moved = point.getBoundingClientRect().top - before;
-    if (Math.abs(moved) >= 1) scrollBy({ top: moved, behavior: 'instant' });
+    if (Math.abs(moved) >= 1) {
+      scrollBy({ top: moved, behavior: 'instant' });
+      ownScrollY = scrollY;
+    }
   }
+
+  // Text still being written is redrawn at most this often per paragraph.
+  const PARTIAL_PAINT_MS = 100;
 
   function paint() {
     paintFrame = 0;
-    const units = toPaint;
-    toPaint = new Map();
-    keepReadingPosition(() => paintUnits(units));
+    const now = performance.now();
+    const units = new Map();
+    const later = new Map();
+    for (const [unit, update] of toPaint) {
+      (!update.complete && now - (unit.paintedAt ?? -Infinity) < PARTIAL_PAINT_MS ? later : units).set(unit, update);
+    }
+    toPaint = later;
+    if (later.size) paintFrame = requestAnimationFrame(paint);
+    for (const unit of units.keys()) unit.paintedAt = now;
+    if (units.size) keepReadingPosition(() => paintUnits(units));
   }
 
   function paintUnits(units) {
@@ -400,7 +454,7 @@
 
   // Text arrives while the model writes it; the final reply then overwrites
   // it, which matters when a batch was rejected and retried one by one.
-  function exchange(texts, onItem) {
+  function exchange(texts, onItem, onPort) {
     return new Promise((resolve) => {
       let port;
       const settle = (response) => {
@@ -414,6 +468,7 @@
         return;
       }
       ports.set(port, settle);
+      onPort(port);
       port.onMessage.addListener((message) => {
         if (message.type === 'item') onItem(message.index, message.text, message.complete);
         else settle(message);
@@ -421,12 +476,6 @@
       port.onDisconnect.addListener(() => settle({ type: 'error', error: chrome.runtime.lastError?.message ?? 'disconnected' }));
       port.postMessage({ texts });
     });
-  }
-
-  function request(units, gen) {
-    if (gen !== generation) return;
-    waiting.push(units);
-    dispatch(gen);
   }
 
   // How far a batch is from the viewport, in pixels; Infinity once it is no
@@ -445,18 +494,30 @@
   // Sends waiting batches while requests are free, nearest to the viewport
   // first. Batches the reader has scrolled far away from go back to the
   // pending paragraphs, to be queued again if the reader returns.
+  // Back to the pending paragraphs, to be queued again if the reader returns.
+  function requeue(units) {
+    for (const unit of units) {
+      unit.el?.remove();
+      unit.el = null;
+      if (!unit.dead) pending.push(unit);
+    }
+  }
+
   function dispatch(gen) {
     if (gen !== generation || !waiting.length) return;
     const scored = waiting.map((units) => ({ units, distance: distance(units) }));
-    const far = scored.filter((b) => b.distance === Infinity);
-    for (const { units } of far) {
-      for (const unit of units) {
-        unit.el?.remove();
-        unit.el = null;
-        if (!unit.dead) pending.push(unit);
+    for (const { units } of scored.filter((b) => b.distance === Infinity)) requeue(units);
+    waiting = scored.filter((b) => b.distance !== Infinity).sort((a, b) => a.distance - b.distance).map((b) => b.units);
+    // A reader skimming ahead would otherwise wait for requests for screens
+    // already left behind; those are cancelled to free their places.
+    if (waiting.length && running >= MAX_REQUESTS) {
+      for (const [units, port] of inflight) {
+        if (distance(units) !== Infinity) continue;
+        inflight.delete(units);
+        port.disconnect();
+        ports.get(port)?.({ type: 'cancelled' });
       }
     }
-    waiting = scored.filter((b) => b.distance !== Infinity).sort((a, b) => a.distance - b.distance).map((b) => b.units);
     while (running < MAX_REQUESTS && waiting.length) send(waiting.shift(), gen);
   }
 
@@ -464,10 +525,18 @@
     running++;
     const reply = await exchange(units.map((u) => u.source), (index, text, complete) => {
       if (gen === generation) fill(units[index], text, complete);
-    });
+    }, (port) => inflight.set(units, port));
+    inflight.delete(units);
     const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
     if (gen !== generation) return;
     running--;
+    if (reply.type === 'cancelled') {
+      // Drop what was shown so far; dispatch() is what cancelled it.
+      for (const unit of units) toPaint.delete(unit);
+      requeue(units);
+      dispatch(gen);
+      return;
+    }
     dispatch(gen);
     if (!response.ok) {
       for (const unit of units) unit.el.remove();
@@ -571,7 +640,7 @@
       attributes: true,
       attributeFilter: ['class', 'style', 'hidden', 'open'],
     });
-    addEventListener('scroll', scheduleCheck, { capture: true, passive: true });
+    addEventListener('scroll', onScroll, { capture: true, passive: true });
     addEventListener('resize', scheduleCheck, { passive: true });
   }
 
@@ -580,6 +649,7 @@
     generation++;
     running = 0;
     waiting = [];
+    inflight = new Map();
     // Disconnecting aborts the model request in the service worker.
     for (const [port, settle] of ports) {
       port.disconnect();
@@ -589,7 +659,7 @@
     cancelAnimationFrame(paintFrame);
     paintFrame = 0;
     toPaint = new Map();
-    removeEventListener('scroll', scheduleCheck, { capture: true });
+    removeEventListener('scroll', onScroll, { capture: true });
     removeEventListener('resize', scheduleCheck);
     clearTimeout(checkTimer);
     checkTimer = 0;

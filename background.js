@@ -108,7 +108,9 @@ function release() {
 async function translate(texts, onItem = () => {}, signal) {
   const config = await loadConfig();
   if (!isConfigured(config)) throw new Error(chrome.i18n.getMessage('missingConfig'));
-  if (texts.length === 1) return [await translateOne(config, texts[0], (text, complete) => onItem(0, text, complete), signal)];
+  // A paragraph with formatting goes as a one-entry batch even alone: in the
+  // JSON form models keep the tags, as plain text they often drop them all.
+  if (texts.length === 1 && !TAGGED.test(texts[0])) return [await translateOne(config, texts[0], (text, complete) => onItem(0, text, complete), signal)];
   const batch = await translateBatch(config, texts, onItem, signal);
   // A model that broke the JSON contract gets the paragraphs one by one; their
   // text replaces whatever the batch already showed.
