@@ -1,6 +1,6 @@
 # 简单翻译 Simple Translate
 
-一个极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面。
+简单翻译是一个开源、极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面。
 
 - **一键开关**：点工具栏上的「译」图标，或按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>）开始翻译；再按一次，页面恢复原样。
 - **只翻你在看的**：屏幕上的段落先翻，往下滚再继续；每段翻完立刻显示，不等整批。
@@ -29,6 +29,22 @@
 
 `chrome://` 页面和 Chrome 网上应用店的页面不允许扩展运行，在那里点图标不会有反应。
 
+## 常见问题
+
+**和沉浸式翻译、Chrome 自带的翻译有什么区别？**
+Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文，译文放在下面，用你选的模型。沉浸式翻译同样是双语对照，还做 PDF、视频字幕等很多别的事；简单翻译只翻网页，没有账号，没有我们自己的服务器。
+
+**网页文字会发到哪里？**
+只在你打开翻译后，把要翻的段落发到你设置的那个服务地址。不发网址，不发给我们，也没有统计。
+
+**能用哪些模型？要花钱吗？**
+任何兼容 OpenAI `/chat/completions` 接口的模型：OpenRouter、OpenAI、DeepSeek、本地 Ollama，或自定义地址。扩展免费（MIT），费用由你选的服务商按它的价格收；本地 Ollama 不用 key。
+
+**Chrome 网上应用店里能装吗？**
+现在不能，按上面「安装」一节加载已解压的扩展程序。应用店里同名的 Simple Translate 是另一个扩展。
+
+更多说明见 <https://max1874.com/simple-translate/>。
+
 ## 工作原理
 
 - 点击时，`background.js` 把 `content.js` 注入当前标签页（靠 `activeTab`，所以不需要所有网站的权限），翻译请求从后台发到 `{地址}/chat/completions`，流式接收。
@@ -50,7 +66,23 @@
 
 ## English
 
-Simple Translate is a minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
+Simple Translate is an open-source, minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
+
+### FAQ
+
+**How is it different from Immersive Translate or Chrome's built-in translation?**
+Chrome's built-in translation replaces the page text using Google Translate; Simple Translate keeps the original and puts the translation below it, using the model you choose. Immersive Translate is also bilingual and does much more (PDFs, video subtitles); Simple Translate only translates web pages, with no account and no server of ours.
+
+**Where does the page text go?**
+Only after you turn translation on, the paragraphs being translated go to the one service address you set. The page URL is not sent, nothing comes to us, and there are no analytics.
+
+**Which models work, and what does it cost?**
+Any model behind an OpenAI-compatible `/chat/completions` endpoint: OpenRouter, OpenAI, DeepSeek, a local Ollama, or a custom address. The extension is free (MIT); the service you pick bills you at its rates, and a local Ollama needs no key.
+
+**Is it on the Chrome Web Store?**
+No; load it unpacked as described under 安装 above. The Simple Translate listed on the store is a different extension.
+
+More at <https://max1874.com/simple-translate/>.
 
 ## License
 

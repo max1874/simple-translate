@@ -34,6 +34,13 @@
   const AS_IS = new Set(['CODE', 'KBD', 'SAMP', 'VAR', 'IMG']);
   const KEEP_AS_IS = '[translate="no"], .notranslate';
   const TAG = /<(\/?)x(\d+)(\/?)>/g;
+  // The page's own text written like a tag (a template's <x1>) is sent with a
+  // look-alike bracket, so neither the model's reply nor the tag handling
+  // takes it for formatting, and is shown with its own bracket again.
+  const LITERAL_TAG = /<(?=\/?x\d+\/?>)/g;
+  const SENT_TAG = /\u2039(?=\/?x\d+\/?>)/g;
+  const escapeTags = (text) => text.replace(LITERAL_TAG, '\u2039');
+  const unescapeTags = (text) => text.replace(SENT_TAG, '<');
   // Copied as is, these would load, submit or run a second time.
   const LIVE = 'iframe, input, select, textarea, button, object, embed, video, audio, form';
   // An inline element holding any of these is scanned like a block. <br> is
@@ -133,7 +140,7 @@
     const parts = [];
     const asIs = new Set();
     const walk = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) return node.data;
+      if (node.nodeType === Node.TEXT_NODE) return escapeTags(node.data);
       if (node.nodeType !== Node.ELEMENT_NODE || isOurs(node) || !node.checkVisibility() || isHiddenFromSight(node)) return '';
       const tag = node.tagName.toUpperCase();
       // Only images the size of a word (icons, emoji, formulas); a photo
@@ -143,7 +150,7 @@
         if (!height || height > 2 * parseFloat(getComputedStyle(node.parentElement).fontSize)) return '';
       }
       if (AS_IS.has(tag) || node.matches(KEEP_AS_IS)) {
-        if (node.querySelector(LIVE)) return node.textContent;
+        if (node.querySelector(LIVE)) return escapeTags(node.textContent);
         parts.push(node);
         asIs.add(node);
         return `<x${parts.length}/>`;
@@ -166,7 +173,7 @@
     const stack = [{ el: fragment, part: null }];
     let last = 0;
     for (const match of text.matchAll(TAG)) {
-      stack.at(-1).el.append(text.slice(last, match.index));
+      stack.at(-1).el.append(unescapeTags(text.slice(last, match.index)));
       last = match.index + match[0].length;
       const part = unit.parts[Number(match[2]) - 1];
       if (!part) continue;
@@ -183,7 +190,7 @@
         if (open > 0) stack.length = open;
       }
     }
-    stack.at(-1).el.append(text.slice(last));
+    stack.at(-1).el.append(unescapeTags(text.slice(last)));
     return fragment;
   }
 
@@ -462,7 +469,7 @@
       if (unit.el.classList.contains(`${MARK}-loading`)) unit.el.classList.replace(`${MARK}-loading`, `${MARK}-in`);
       unit.el.style.display = hidden ? 'none' : '';
       const content = unit.parts.length ? render(unit, text) : document.createDocumentFragment();
-      if (!unit.parts.length) content.append(text);
+      if (!unit.parts.length) content.append(unescapeTags(text));
       if (targetLang.startsWith('zh')) spaceOut(content);
       unit.el.replaceChildren(content);
     }
