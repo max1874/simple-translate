@@ -461,9 +461,105 @@
       if (hidden && !complete) continue;
       if (unit.el.classList.contains(`${MARK}-loading`)) unit.el.classList.replace(`${MARK}-loading`, `${MARK}-in`);
       unit.el.style.display = hidden ? 'none' : '';
-      if (unit.parts.length) unit.el.replaceChildren(render(unit, text));
-      else unit.el.textContent = text;
+      const content = unit.parts.length ? render(unit, text) : document.createDocumentFragment();
+      if (!unit.parts.length) content.append(text);
+      if (targetLang.startsWith('zh')) spaceOut(content);
+      unit.el.replaceChildren(content);
     }
+  }
+
+  // Chinese is set with a space between Chinese and Latin letters or digits
+  // (在 Chrome 中打开，共 3 个) and none beside Chinese punctuation. Models get
+  // both wrong some of the time, and also carry the spaces at the edges of
+  // links over from English (打開 設定), which are taken out too; spaces they
+  // put between Chinese words themselves (第一章 总则), and spaces separating
+  // two links, stay. The text is tidied as a whole across its formatting,
+  // before it is shown. Code and text kept as is keep their text: a space
+  // needed at their edge goes outside, whatever they start or end with
+  // (fetch() 函数). Superscripts and subscripts sit against their word.
+  const HAN = /\p{Script=Han}/u;
+  const ALNUM = /[A-Za-z0-9\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff]/u;
+  const WIDE_PUNCTUATION = /[\u3001-\u303f\uff01-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65\ufe30-\ufe4f—…·‧]/u;
+  const QUOTES = /[“”‘’]/u;
+  const LITERAL = `code, kbd, samp, pre, var, ${KEEP_AS_IS}`;
+  const TIGHT = 'sup, sub';
+
+  function spaceOut(root) {
+    let run = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeType === Node.TEXT_NODE) run.push(node);
+      else if (node.tagName === 'BR' || node.tagName === 'IMG') {
+        tidy(run);
+        run = [];
+      }
+    }
+    tidy(run);
+  }
+
+  function tidy(nodes) {
+    const info = nodes.map((node) => {
+      let depth = 0;
+      for (let n = node.parentNode; n; n = n.parentNode) depth++;
+      const parent = node.parentElement;
+      return {
+        node,
+        depth,
+        literal: Boolean(parent?.closest(LITERAL)),
+        tight: Boolean(parent?.closest(TIGHT)),
+        link: Boolean(parent?.closest('a')),
+        blank: !node.data.trim(),
+      };
+    });
+    const chars = info.flatMap((at) => [...at.node.data].map((c) => ({ c, at })));
+    const wide = (c) => HAN.test(c) || WIDE_PUNCTUATION.test(c) || QUOTES.test(c);
+    let kept = [];
+    for (let i = 0; i < chars.length; i++) {
+      const { c, at } = chars[i];
+      if (c === ' ' && !at.literal && !at.blank) {
+        let j = i;
+        while (chars[j + 1]?.c === ' ' && chars[j + 1].at === at) j++;
+        const before = kept.at(-1);
+        const after = chars[j + 1];
+        // Beside Chinese punctuation; or between Chinese at the edge of
+        // formatting, where it came from the English.
+        const drop = before && after && (
+          WIDE_PUNCTUATION.test(before.c) || WIDE_PUNCTUATION.test(after.c)
+          || (wide(before.c) && wide(after.c) && (before.at !== at || after.at !== at))
+        );
+        if (drop) {
+          i = j;
+          continue;
+        }
+      }
+      kept.push(chars[i]);
+    }
+    const text = new Map(info.map((at) => [at, '']));
+    const put = (at, s) => text.set(at, text.get(at) + s);
+    kept.forEach((cur, i) => {
+      const prev = kept[i - 1];
+      if (prev && needsSpace(prev, cur)) {
+        if (prev.at === cur.at) {
+          if (!cur.at.literal && !cur.at.tight) put(cur.at, ' ');
+        } else {
+          // Outside the formatting, never in code, and not under a link's
+          // underline when that can be helped.
+          const sides = [prev.at, cur.at].filter((at) => !at.literal);
+          sides.sort((a, b) => a.depth - b.depth || a.link - b.link);
+          if (sides.length) put(sides[0], ' ');
+        }
+      }
+      put(cur.at, cur.c);
+    });
+    for (const at of info) if (at.node.data !== text.get(at)) at.node.data = text.get(at);
+  }
+
+  function needsSpace(a, b) {
+    if (a.at !== b.at && (a.at.tight || b.at.tight)) return false;
+    const edge = (side, other) => side.at.literal && side.at !== other.at && /[!-~]/.test(side.c);
+    if (HAN.test(a.c)) return ALNUM.test(b.c) || b.c === '$' || edge(b, a);
+    if (HAN.test(b.c)) return ALNUM.test(a.c) || a.c === '%' || a.c === '°' || edge(a, b);
+    return false;
   }
 
   // Text arrives while the model writes it; the final reply then overwrites

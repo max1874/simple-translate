@@ -176,7 +176,7 @@ function ownTags(text, { first, count }) {
 function systemPrompt(config, batch, tagged) {
   const lang = languageName(config.targetLang);
   let keep = 'Keep code, URLs, numbers and names that are normally left untranslated as they are. Do not add notes or explanations.';
-  if (tagged) keep += ' Tags like <x1>…</x1> mark formatting: keep each one around the translated words it marks. Keep each <x2/>-style tag, unchanged, where it belongs in the sentence.';
+  if (tagged) keep += ' Tags like <x1>…</x1> mark formatting: keep each one around the translated words it marks, and translate the words inside like the rest: tagged words are usually links or emphasis, not names. Keep each <x2/>-style tag, unchanged, where it belongs in the sentence.';
   if (!batch) {
     return `You translate text from web pages into ${lang}. Reply with only the translation of the user's text. ${keep}`;
   }
