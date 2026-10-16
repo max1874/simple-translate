@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "Simple Translate"
+    "message": "Plain Translate"
   },
   "extDescription": {
     "message": "Bilingual web page translation with your own LLM. One click, no tracking."
@@ -9,13 +9,13 @@
     "message": "Translate this page"
   },
   "optionsTitle": {
-    "message": "Simple Translate Settings"
+    "message": "Plain Translate Settings"
   },
   "sectionService": {
     "message": "Translation Service"
   },
   "serviceNote": {
-    "message": "Simple Translate uses your own account with each service. Page text goes only to the service you choose, keys stay in this browser, and the service bills you at its standard rates."
+    "message": "Plain Translate uses your own account with each service. Page text goes only to the service you choose, keys stay in this browser, and the service bills you at its standard rates."
   },
   "custom": {
     "message": "Custom"

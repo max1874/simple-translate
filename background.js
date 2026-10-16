@@ -42,7 +42,7 @@ async function toggleTab(tab) {
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
-    console.warn('Simple Translate cannot run on this page:', error.message);
+    console.warn('Plain Translate cannot run on this page:', error.message);
   }
 }
 
@@ -247,18 +247,18 @@ async function translateBatch(config, texts, onItem, signal) {
   }
   const numbered = texts.map((_, i) => output[String(i + 1)]);
   if (!numbered.every((t) => typeof t === 'string' && t.trim())) {
-    console.warn('Simple Translate: batch reply is missing paragraphs; retrying one by one');
+    console.warn('Plain Translate: batch reply is missing paragraphs; retrying one by one');
     return null;
   }
   const translations = numbered.map((t, i) => ownTags(t, tags[i]));
   const foreign = translations.indexOf(null);
   if (foreign >= 0) {
-    console.warn(`Simple Translate: batch reply looks misaligned (${foreign + 1} holds another paragraph's tags); retrying one by one`);
+    console.warn(`Plain Translate: batch reply looks misaligned (${foreign + 1} holds another paragraph's tags); retrying one by one`);
     return null;
   }
   const problem = misalignment(texts, translations);
   if (problem) {
-    console.warn(`Simple Translate: batch reply looks misaligned (${problem}); retrying one by one`);
+    console.warn(`Plain Translate: batch reply looks misaligned (${problem}); retrying one by one`);
     return null;
   }
   return translations;
