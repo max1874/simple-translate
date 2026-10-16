@@ -2,6 +2,10 @@
 
 简单翻译是一个开源、极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面。
 
+<a href="https://max1874.com/simple-translate/"><img src="docs/demo.zh.gif" width="800" alt="点工具栏图标后，译文逐段出现在原文下面"></a>
+
+<sub>动图录自 [max1874.com/simple-translate](https://max1874.com/simple-translate/)，那里可以亲手试。</sub>
+
 - **一键开关**：点工具栏上的简单翻译图标，或按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>）开始翻译；再按一次，页面恢复原样。
 - **只翻你在看的**：屏幕上的段落先翻，往下滚再继续；每段翻完立刻显示，不等整批。
 - **用你自己的模型和 key**：OpenRouter、OpenAI、DeepSeek、Ollama，或任何兼容 OpenAI 接口的服务。
