@@ -8,81 +8,86 @@
 </head>
 <body>
   <main>
-    <header class="title">
-      <img src="icons/48.png" alt="" width="32" height="32">
-      <h1 data-i18n="extName"></h1>
+    <header class="brand">
+      <img src="icons/128.png" alt="" width="36" height="36">
+      <div>
+        <h1 data-i18n="extName"></h1>
+        <p data-i18n="extDescription"></p>
+      </div>
     </header>
 
-    <h2 data-i18n="sectionService"></h2>
-    <div class="group" id="services" role="radiogroup"></div>
-    <p class="note" data-i18n="serviceNote"></p>
+    <section class="card">
+      <h2 data-i18n="sectionService"></h2>
+      <div class="tiles" id="services" role="radiogroup"></div>
 
-    <h2 id="service-title"></h2>
-    <div class="group">
-      <label class="row">
-        <span data-i18n="apiKey"></span>
+      <div class="field">
+        <div class="label">
+          <label for="api-key" data-i18n="apiKey"></label>
+          <span class="actions">
+            <button type="button" id="remove-key" class="link danger"></button>
+            <a id="key-page" target="_blank" rel="noreferrer" data-i18n="getKey"></a>
+          </span>
+        </div>
         <input id="api-key" type="password" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="row">
-        <span data-i18n="address"></span>
+        <p class="hint" id="key-help"></p>
+      </div>
+
+      <div class="field" id="address-field">
+        <div class="label"><label for="base-url" data-i18n="address"></label></div>
         <input id="base-url" type="url" spellcheck="false" placeholder="https://">
-      </label>
-      <div class="row">
-        <label for="model" data-i18n="model"></label>
-        <div class="field">
+      </div>
+
+      <div class="field">
+        <div class="label"><label for="model" data-i18n="model"></label></div>
+        <div class="with-button">
           <input id="model" list="models" spellcheck="false">
           <datalist id="models"></datalist>
-          <button type="button" id="refresh-models" class="small" data-i18n="refresh"></button>
+          <button type="button" id="refresh-models" class="icon" data-i18n-title="refresh">↻</button>
         </div>
+        <p class="hint" id="models-status"></p>
       </div>
-      <p class="row-note" id="models-status"></p>
-      <label class="row">
-        <span data-i18n="reasoning"></span>
-        <select id="reasoning"></select>
-      </label>
-      <p class="row-note" data-i18n="reasoningHint"></p>
-      <div class="row">
-        <button type="button" id="test" data-i18n="test"></button>
+
+      <div class="field">
+        <div class="label"><span id="reasoning-label" data-i18n="reasoning"></span></div>
+        <div class="segmented" id="reasoning" role="radiogroup" aria-labelledby="reasoning-label"></div>
+      </div>
+
+      <div class="test">
+        <button type="button" id="test" class="primary" data-i18n="test"></button>
         <output id="test-result"></output>
       </div>
-    </div>
-    <div class="note links">
-      <span id="key-help"></span>
-      <a id="key-page" target="_blank" rel="noreferrer" data-i18n="getKey"></a>
-    </div>
-    <div class="group" id="remove-group">
-      <div class="row">
-        <button type="button" id="remove-key" data-i18n="removeKey"></button>
-      </div>
-    </div>
+    </section>
 
-    <h2 data-i18n="sectionTranslate"></h2>
-    <div class="group">
-      <label class="row">
-        <span data-i18n="targetLang"></span>
+    <section class="card">
+      <h2 data-i18n="sectionTranslate"></h2>
+      <div class="field">
+        <div class="label"><label for="target-lang" data-i18n="targetLang"></label></div>
         <select id="target-lang"></select>
-      </label>
-      <p class="row-note" data-i18n="targetHint"></p>
-      <div class="row">
+        <p class="hint" data-i18n="targetHint"></p>
+      </div>
+      <div class="inline">
         <span data-i18n="shortcut"></span>
-        <div class="field end">
+        <span class="actions">
           <kbd id="shortcut"></kbd>
-          <button type="button" id="change-shortcut" class="small" data-i18n="shortcutChange"></button>
-        </div>
+          <button type="button" id="change-shortcut" data-i18n="shortcutChange"></button>
+        </span>
       </div>
-      <p class="row-note" data-i18n="shortcutHint"></p>
-    </div>
+      <p class="hint" id="shortcut-hint" data-i18n="shortcutHint" hidden></p>
+    </section>
 
-    <details>
-      <summary data-i18n="advanced"></summary>
-      <div class="group">
-        <div class="row column">
-          <label for="extra-body" data-i18n="extraBody"></label>
-          <textarea id="extra-body" rows="3" spellcheck="false" placeholder="{}"></textarea>
-        </div>
-        <p class="row-note" id="extra-body-note" data-i18n="extraBodyHint"></p>
-      </div>
-    </details>
+    <footer>
+      <p data-i18n="serviceNote"></p>
+      <details>
+        <summary data-i18n="advanced"></summary>
+        <section class="card">
+          <div class="field">
+            <div class="label"><label for="extra-body" data-i18n="extraBody"></label></div>
+            <textarea id="extra-body" rows="3" spellcheck="false" placeholder="{}"></textarea>
+            <p class="hint" id="extra-body-note" data-i18n="extraBodyHint"></p>
+          </div>
+        </section>
+      </details>
+    </footer>
   </main>
   <script src="common.js"></script>
   <script src="icons.js"></script>

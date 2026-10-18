@@ -23,7 +23,8 @@ var LANGUAGES = [
 // `reasoning` is the default effort: off where the service accepts it,
 // because a model that reasons first is slow to start (DeepSeek V4.1 Flash
 // on OpenRouter: first word after ~8s by default, ~2s with "none",
-// measured 2026-10-13).
+// measured 2026-10-13). DeepSeek's own deepseek-flash (V4.1 Flash) also
+// reasons by default and takes "none" (checked 2026-10-18).
 var SERVICES = [
   {
     id: 'openrouter',
@@ -47,8 +48,8 @@ var SERVICES = [
     id: 'deepseek',
     name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com',
-    model: 'deepseek-chat',
-    reasoning: 'default',
+    model: 'deepseek-flash',
+    reasoning: 'none',
     keyPage: 'https://platform.deepseek.com/api_keys',
     needsKey: true,
   },

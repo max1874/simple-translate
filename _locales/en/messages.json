@@ -43,14 +43,6 @@
       }
     }
   },
-  "keyHelp": {
-    "message": "Create a key in your $P1$ account and paste it above.",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
   "keyHelpLocal": {
     "message": "A model running on this computer usually needs no key."
   },
@@ -87,9 +79,6 @@
   },
   "reasoning": {
     "message": "Reasoning"
-  },
-  "reasoningHint": {
-    "message": "Translating seldom needs it, and a model that reasons first is slower to start. Not every model accepts every level; the service says so when it doesn't."
   },
   "reasoning_default": {
     "message": "Model default"

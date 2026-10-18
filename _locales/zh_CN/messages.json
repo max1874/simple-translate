@@ -43,14 +43,6 @@
       }
     }
   },
-  "keyHelp": {
-    "message": "在 $P1$ 账号里创建一个 key，粘贴到上面。",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
-  },
   "keyHelpLocal": {
     "message": "本机运行的模型通常不需要 key。"
   },
@@ -87,9 +79,6 @@
   },
   "reasoning": {
     "message": "推理"
-  },
-  "reasoningHint": {
-    "message": "翻译很少需要推理；推理越多，第一个字出来越慢。不是每个模型都支持每一档，不支持时服务商会报错。"
   },
   "reasoning_default": {
     "message": "跟随模型"

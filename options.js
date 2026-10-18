@@ -2,8 +2,20 @@ const t = (key, ...args) => chrome.i18n.getMessage(key, args.map(String));
 const $ = (id) => document.getElementById(id);
 
 for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = el.ariaLabel = t(el.dataset.i18nTitle);
 for (const [code, native] of LANGUAGES) $('target-lang').add(new Option(native, code));
-for (const level of REASONING_LEVELS) $('reasoning').add(new Option(t(`reasoning_${level}`), level));
+for (const level of REASONING_LEVELS) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute('role', 'radio');
+  button.dataset.level = level;
+  button.textContent = t(`reasoning_${level}`);
+  button.addEventListener('click', async () => {
+    await saveService({ reasoning: level });
+    render();
+  });
+  $('reasoning').append(button);
+}
 
 let config;
 let modelsFor = '';
@@ -51,43 +63,40 @@ function render() {
   const list = $('services');
   list.replaceChildren(...SERVICES.map((preset) => {
     const service = serviceConfig(config, preset.id);
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'service';
-    row.setAttribute('role', 'radio');
-    row.setAttribute('aria-checked', String(preset.id === config.service));
-    row.innerHTML = '<span class="check"></span><span class="service-icon"></span><span class="service-text"><div class="service-name"></div><div class="service-detail"></div></span>';
-    row.querySelector('.service-icon').append(serviceIcon(preset.id));
-    row.querySelector('.service-name').textContent = displayName(service);
-    row.querySelector('.service-detail').textContent = preset.id === 'custom' && !service.baseUrl
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'tile';
+    tile.setAttribute('role', 'radio');
+    tile.setAttribute('aria-checked', String(preset.id === config.service));
+    tile.title = preset.id === 'custom' && !service.baseUrl
       ? t('customHint')
       : [service.model, t(`reasoning_${service.reasoning}`)].filter(Boolean).join(' · ');
+    tile.append(serviceIcon(preset.id), displayName(service));
     if (service.apiKey) {
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = t('saved');
-      row.append(badge);
+      const dot = document.createElement('span');
+      dot.className = 'key-dot';
+      dot.title = t('saved');
+      tile.append(dot);
     }
-    row.addEventListener('click', () => choose(preset.id));
-    return row;
+    tile.addEventListener('click', () => choose(preset.id));
+    return tile;
   }));
 
   const service = current();
-  $('service-title').textContent = displayName(service);
   const key = $('api-key');
   key.value = '';
   key.placeholder = service.apiKey
     ? t('keySaved', service.apiKey.slice(-4))
     : t(service.needsKey ? 'keyRequired' : 'keyOptional');
   $('base-url').value = service.baseUrl;
-  $('base-url').readOnly = service.id !== 'custom';
+  $('address-field').hidden = service.id !== 'custom';
   $('model').value = service.model;
   $('model').placeholder = SERVICES.find((s) => s.id === service.id).model;
-  $('reasoning').value = service.reasoning;
+  for (const button of $('reasoning').children) button.setAttribute('aria-checked', String(button.dataset.level === service.reasoning));
   $('key-page').hidden = !service.keyPage;
   if (service.keyPage) $('key-page').href = service.keyPage;
-  $('key-help').textContent = service.keyPage ? t('keyHelp', service.name) : service.id === 'ollama' ? t('keyHelpLocal') : '';
-  $('remove-group').hidden = !service.apiKey;
+  $('key-help').textContent = service.id === 'ollama' ? t('keyHelpLocal') : '';
+  $('remove-key').hidden = !service.apiKey;
   resetRemove();
 }
 
@@ -160,11 +169,6 @@ $('model').addEventListener('change', async (event) => {
   render();
 });
 
-$('reasoning').addEventListener('change', async (event) => {
-  await saveService({ reasoning: event.target.value });
-  render();
-});
-
 $('target-lang').addEventListener('change', (event) => {
   config.targetLang = event.target.value;
   save();
@@ -195,7 +199,15 @@ async function loadModels(force = false) {
   const status = $('models-status');
   const list = $('models');
   const signature = `${service.baseUrl} ${service.apiKey}`;
-  if (!service.baseUrl || (!force && modelsFor === signature)) return;
+  if (!service.baseUrl) {
+    // Custom before an address is entered: nothing to list, and the previous
+    // service's count would mislead.
+    modelsFor = '';
+    list.replaceChildren();
+    status.textContent = '';
+    return;
+  }
+  if (!force && modelsFor === signature) return;
   modelsFor = signature;
   list.replaceChildren();
   status.textContent = t('modelsLoading');
@@ -267,6 +279,7 @@ async function showShortcut() {
   const commands = await chrome.commands.getAll();
   const shortcut = commands.find((c) => c.name === '_execute_action')?.shortcut;
   $('shortcut').textContent = shortcut || t('shortcutNone');
+  $('shortcut-hint').hidden = Boolean(shortcut);
 }
 
 $('change-shortcut').addEventListener('click', () => {
