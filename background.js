@@ -2,6 +2,15 @@ importScripts('common.js');
 
 const REQUEST_TIMEOUT_MS = 90_000;
 
+// OpenRouter refuses a request up front (HTTP 402) when the key's remaining
+// credit cannot pay for max_tokens of output, and without max_tokens it
+// assumes the model's whole output limit (65,536 for DeepSeek V4.1 Flash), so
+// a key with a few cents left failed although a translation needs a few
+// thousand tokens. A request carries at most 6,000 characters of source,
+// which leaves this room for the translation and some reasoning. Only for
+// OpenRouter: OpenAI's reasoning models reject max_tokens.
+const OPENROUTER_MAX_TOKENS = 16_384;
+
 chrome.action.onClicked.addListener(toggleTab);
 chrome.runtime.onInstalled.addListener(migrateConfig);
 
@@ -318,6 +327,7 @@ async function chat(config, system, user, onContent, signal) {
     headers,
     body: JSON.stringify({
       ...(service.reasoning !== 'default' && { reasoning_effort: service.reasoning }),
+      ...(sameOrigin(service.baseUrl, 'https://openrouter.ai') && { max_tokens: OPENROUTER_MAX_TOKENS }),
       ...extra,
       model: service.model,
       messages: [
