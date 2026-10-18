@@ -4,21 +4,28 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
 for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = el.ariaLabel = t(el.dataset.i18nTitle);
 for (const [code, native] of LANGUAGES) $('target-lang').add(new Option(native, code));
-for (const level of REASONING_LEVELS) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.setAttribute('role', 'radio');
-  button.dataset.level = level;
-  button.textContent = t(`reasoning_${level}`);
-  button.addEventListener('click', async () => {
-    await saveService({ reasoning: level });
-    render();
-  });
-  $('reasoning').append(button);
+for (const level of REASONING_LEVELS) $('reasoning').add(new Option(t(`reasoning_${level}`), level));
+
+// One panel per sidebar item; the hash names it, so a reload stays put.
+const SECTIONS = ['service', 'translation', 'advanced'];
+
+function showSection() {
+  const hash = location.hash.slice(1);
+  const section = SECTIONS.includes(hash) ? hash : SECTIONS[0];
+  for (const panel of document.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== section;
+  for (const link of document.querySelectorAll('[data-section]')) {
+    if (link.dataset.section === section) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+  scrollTo(0, 0);
 }
+showSection();
+addEventListener('hashchange', showSection);
 
 let config;
 let modelsFor = '';
+// A saved key shows masked; the field appears only after Change…
+let editingKey = false;
 
 loadConfig().then((loaded) => {
   config = loaded;
@@ -45,6 +52,9 @@ function serviceIcon(id) {
 }
 const displayName = (service) => service.name || t('custom');
 
+const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
+const KEY = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="11" r="2.8"/><path d="M7 9l6.5-6.5M11 4.5l2 2"/></svg>';
+
 function save() {
   return chrome.storage.local.set({
     service: config.service,
@@ -63,40 +73,55 @@ function render() {
   const list = $('services');
   list.replaceChildren(...SERVICES.map((preset) => {
     const service = serviceConfig(config, preset.id);
-    const tile = document.createElement('button');
-    tile.type = 'button';
-    tile.className = 'tile';
-    tile.setAttribute('role', 'radio');
-    tile.setAttribute('aria-checked', String(preset.id === config.service));
-    tile.title = preset.id === 'custom' && !service.baseUrl
-      ? t('customHint')
-      : [service.model, t(`reasoning_${service.reasoning}`)].filter(Boolean).join(' · ');
-    tile.append(serviceIcon(preset.id), displayName(service));
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'row service';
+    row.setAttribute('role', 'radio');
+    row.setAttribute('aria-checked', String(preset.id === config.service));
+    const logo = document.createElement('span');
+    logo.className = 'logo';
+    logo.append(serviceIcon(preset.id));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.append(displayName(service));
     if (service.apiKey) {
-      const dot = document.createElement('span');
-      dot.className = 'key-dot';
-      dot.title = t('saved');
-      tile.append(dot);
+      const saved = document.createElement('span');
+      saved.className = 'saved';
+      saved.title = t('saved');
+      saved.innerHTML = KEY;
+      name.append(saved);
     }
-    tile.addEventListener('click', () => choose(preset.id));
-    return tile;
+    const value = document.createElement('span');
+    value.className = 'value';
+    value.textContent = preset.id === 'custom' && !service.baseUrl ? t('customHint') : service.model;
+    const check = document.createElement('span');
+    check.className = 'check';
+    check.innerHTML = CHECK;
+    row.append(logo, name, value, check);
+    row.addEventListener('click', () => choose(preset.id));
+    return row;
   }));
 
   const service = current();
+  $('service-name').textContent = displayName(service);
   const key = $('api-key');
+  const editing = editingKey || !service.apiKey;
   key.value = '';
+  key.hidden = !editing;
   key.placeholder = service.apiKey
-    ? t('keySaved', service.apiKey.slice(-4))
+    ? t('keyNew')
     : t(service.needsKey ? 'keyRequired' : 'keyOptional');
+  $('key-saved').hidden = editing;
+  $('key-saved').textContent = service.apiKey ? `••••••••${service.apiKey.slice(-4)}` : '';
+  $('key-buttons').hidden = editing;
   $('base-url').value = service.baseUrl;
   $('address-field').hidden = service.id !== 'custom';
   $('model').value = service.model;
   $('model').placeholder = SERVICES.find((s) => s.id === service.id).model;
-  for (const button of $('reasoning').children) button.setAttribute('aria-checked', String(button.dataset.level === service.reasoning));
+  $('reasoning').value = service.reasoning;
   $('key-page').hidden = !service.keyPage;
   if (service.keyPage) $('key-page').href = service.keyPage;
   $('key-help').textContent = service.id === 'ollama' ? t('keyHelpLocal') : '';
-  $('remove-key').hidden = !service.apiKey;
   resetRemove();
 }
 
@@ -129,6 +154,7 @@ function requestAccess(baseUrl) {
 
 function choose(id) {
   config.service = id;
+  editingKey = false;
   showResult('');
   const access = current().baseUrl ? requestAccess(current().baseUrl) : Promise.resolve(false);
   save();
@@ -142,10 +168,30 @@ $('api-key').addEventListener('change', async (event) => {
   const value = event.target.value.trim();
   if (!value) return;
   const access = requestAccess(current().baseUrl);
+  editingKey = false;
   await saveService({ apiKey: value });
   render();
   await access;
   loadModels(true);
+});
+
+$('change-key').addEventListener('click', () => {
+  editingKey = true;
+  render();
+  $('api-key').focus();
+});
+
+// Leaving the field empty, or Escape, keeps the saved key.
+$('api-key').addEventListener('blur', (event) => {
+  if (!editingKey || event.target.value.trim()) return;
+  editingKey = false;
+  render();
+});
+
+$('api-key').addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  event.target.value = '';
+  event.target.blur();
 });
 
 $('base-url').addEventListener('change', async (event) => {
@@ -169,6 +215,11 @@ $('model').addEventListener('change', async (event) => {
   render();
 });
 
+$('reasoning').addEventListener('change', async (event) => {
+  await saveService({ reasoning: event.target.value });
+  render();
+});
+
 $('target-lang').addEventListener('change', (event) => {
   config.targetLang = event.target.value;
   save();
@@ -184,6 +235,7 @@ $('extra-body').addEventListener('change', (event) => {
   }
   const valid = parsed && typeof parsed === 'object' && !Array.isArray(parsed);
   $('extra-body-note').textContent = t(valid ? 'extraBodyHint' : 'badExtraBody');
+  $('extra-body-note').classList.toggle('error', !valid);
   if (!valid) return;
   config.extraBody = value;
   save();
@@ -262,11 +314,13 @@ function resetRemove() {
   clearTimeout(removeArmed);
   removeArmed = 0;
   $('remove-key').textContent = t('removeKey');
+  $('remove-key').classList.remove('danger');
 }
 
 $('remove-key').addEventListener('click', async () => {
   if (!removeArmed) {
     $('remove-key').textContent = t('removeConfirm');
+    $('remove-key').classList.add('danger');
     removeArmed = setTimeout(resetRemove, 4000);
     return;
   }

@@ -29,19 +29,17 @@
   "apiKey": {
     "message": "API Key"
   },
+  "change": {
+    "message": "Change…"
+  },
   "keyRequired": {
     "message": "Required"
   },
   "keyOptional": {
     "message": "Optional"
   },
-  "keySaved": {
-    "message": "Saved (••••$P1$). Paste a new key to replace it.",
-    "placeholders": {
-      "p1": {
-        "content": "$1"
-      }
-    }
+  "keyNew": {
+    "message": "Paste a new key"
   },
   "keyHelpLocal": {
     "message": "A model running on this computer usually needs no key."
@@ -98,6 +96,9 @@
   "reasoning_high": {
     "message": "High"
   },
+  "reasoningHint": {
+    "message": "Off starts fastest; translation seldom needs reasoning."
+  },
   "test": {
     "message": "Test"
   },
@@ -127,7 +128,7 @@
     }
   },
   "removeKey": {
-    "message": "Remove Key…"
+    "message": "Remove…"
   },
   "removeConfirm": {
     "message": "Click again to remove"
@@ -147,20 +148,20 @@
   "shortcutNone": {
     "message": "Not set"
   },
-  "shortcutChange": {
-    "message": "Change"
-  },
   "shortcutHint": {
     "message": "\"Not set\" usually means another extension already uses the key. You can also click the toolbar icon."
   },
   "advanced": {
     "message": "Advanced"
   },
+  "privacy": {
+    "message": "Privacy"
+  },
   "extraBody": {
-    "message": "Extra request fields (JSON)"
+    "message": "Extra request fields:"
   },
   "extraBodyHint": {
-    "message": "Merged into every request body."
+    "message": "A JSON object, merged into every request body."
   },
   "badExtraBody": {
     "message": "Not saved: extra request fields must be a JSON object."
