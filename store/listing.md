@@ -82,7 +82,7 @@ Translates the web page the user is reading, on request, with an LLM service the
 
 - **activeTab**: gives access to the current tab only when the user clicks the toolbar icon or presses the shortcut, so the extension needs no access to all websites.
 - **scripting**: injects the translation script and its styles into that tab at that moment; nothing is injected into pages the user has not turned translation on for.
-- **storage**: saves the user's settings: the chosen service, its API key, model, reasoning level, address (custom service only), the target language and optional extra request fields.
+- **storage**: saves the user's settings: the chosen service, its API key, model, reasoning level, address (custom service only), and the target language.
 - **Optional host permissions `https://*/*`, `http://*/*`**: the translation service is any OpenAI-compatible address the user enters, including a local Ollama on `http://localhost`, so its host cannot be listed in advance. They are optional: at run time the extension requests access only to the one origin of the service the user picked, and uses it only to send translation and model-list requests there. Page access comes from activeTab, not from these.
 
 ### Remote code

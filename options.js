@@ -7,7 +7,7 @@ for (const [code, native] of LANGUAGES) $('target-lang').add(new Option(native, 
 for (const level of REASONING_LEVELS) $('reasoning').add(new Option(t(`reasoning_${level}`), level));
 
 // One panel per sidebar item; the hash names it, so a reload stays put.
-const SECTIONS = ['service', 'translation', 'advanced'];
+const SECTIONS = ['service', 'translation'];
 
 function showSection() {
   const hash = location.hash.slice(1);
@@ -30,7 +30,6 @@ let editingKey = false;
 loadConfig().then((loaded) => {
   config = loaded;
   $('target-lang').value = config.targetLang;
-  $('extra-body').value = config.extraBody;
   render();
   loadModels();
   showShortcut();
@@ -60,7 +59,6 @@ function save() {
     service: config.service,
     services: config.services,
     targetLang: config.targetLang,
-    extraBody: config.extraBody,
   });
 }
 
@@ -222,22 +220,6 @@ $('reasoning').addEventListener('change', async (event) => {
 
 $('target-lang').addEventListener('change', (event) => {
   config.targetLang = event.target.value;
-  save();
-});
-
-$('extra-body').addEventListener('change', (event) => {
-  const value = event.target.value.trim();
-  let parsed = {};
-  try {
-    if (value) parsed = JSON.parse(value);
-  } catch {
-    parsed = null;
-  }
-  const valid = parsed && typeof parsed === 'object' && !Array.isArray(parsed);
-  $('extra-body-note').textContent = t(valid ? 'extraBodyHint' : 'badExtraBody');
-  $('extra-body-note').classList.toggle('error', !valid);
-  if (!valid) return;
-  config.extraBody = value;
   save();
 });
 

@@ -82,7 +82,6 @@ var DEFAULTS = {
   // Per service: { apiKey, model, reasoning, baseUrl (custom only) }.
   services: {},
   targetLang: '',
-  extraBody: '',
 };
 
 function languageCode(tag) {
@@ -123,6 +122,8 @@ function upgradeStored(stored) {
 }
 
 async function migrateConfig() {
+  // 1.0.2 dropped the extra request fields setting; nothing reads it now.
+  await chrome.storage.local.remove('extraBody');
   const stored = await chrome.storage.local.get(null);
   if (!upgradeStored(stored)) return;
   await chrome.storage.local.set({ service: stored.service, services: stored.services });

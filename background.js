@@ -38,7 +38,7 @@ async function toggleTab(tab) {
     await chrome.scripting.executeScript({
       target,
       func: (pageConfig) => globalThis.__simpleTranslate.toggle(pageConfig),
-      args: [{ targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning, config.extraBody].join(' ') }],
+      args: [{ targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') }],
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
@@ -308,8 +308,6 @@ function withoutThinking(content) {
 
 async function chat(config, system, user, onContent, signal) {
   const service = serviceConfig(config);
-  let extra = {};
-  if (config.extraBody.trim()) extra = JSON.parse(config.extraBody);
   const headers = { 'Content-Type': 'application/json' };
   if (service.apiKey) headers.Authorization = `Bearer ${service.apiKey}`;
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
@@ -318,7 +316,6 @@ async function chat(config, system, user, onContent, signal) {
     headers,
     body: JSON.stringify({
       ...(service.reasoning !== 'default' && { reasoning_effort: service.reasoning }),
-      ...extra,
       model: service.model,
       messages: [
         { role: 'system', content: system },

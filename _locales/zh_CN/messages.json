@@ -151,20 +151,8 @@
   "shortcutHint": {
     "message": "显示「未设置」通常是这个组合键已被别的扩展占用。也可以直接点工具栏上的图标。"
   },
-  "advanced": {
-    "message": "高级"
-  },
   "privacy": {
     "message": "隐私"
-  },
-  "extraBody": {
-    "message": "额外请求参数："
-  },
-  "extraBodyHint": {
-    "message": "一个 JSON 对象，会合并进每次请求体。"
-  },
-  "badExtraBody": {
-    "message": "没有保存：额外请求参数必须是一个 JSON 对象。"
   },
   "missingConfig": {
     "message": "请先在设置里选择翻译服务并填写 API Key。"

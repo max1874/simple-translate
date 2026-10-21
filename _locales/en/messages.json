@@ -151,20 +151,8 @@
   "shortcutHint": {
     "message": "\"Not set\" usually means another extension already uses the key. You can also click the toolbar icon."
   },
-  "advanced": {
-    "message": "Advanced"
-  },
   "privacy": {
     "message": "Privacy"
-  },
-  "extraBody": {
-    "message": "Extra request fields:"
-  },
-  "extraBodyHint": {
-    "message": "A JSON object, merged into every request body."
-  },
-  "badExtraBody": {
-    "message": "Not saved: extra request fields must be a JSON object."
   },
   "missingConfig": {
     "message": "Choose a translation service and enter its API key in the settings first."
