@@ -10,6 +10,12 @@ The store name is **Plain Translate** in English and **简单翻译** in Chinese
 (sienori, `ibplnjkanclpjokhdolnendpplpjiace`). The repository and the site page
 keep the `simple-translate` slug.
 
+The developer account is the Google account **starlink1874@gmail.com** (item
+`agbnnlocgcdpnkkbfooojejhnpcemiko`); open the dashboard as
+`https://chrome.google.com/webstore/devconsole?authuser=starlink1874@gmail.com`,
+since the browser's first Google account is a different one. The dashboard asks
+for a passkey re-check now and then, which only Max can do.
+
 ## Package
 
 `sh tools/package.sh` → `dist/plain-translate-<version>.zip`. Bump `version` in
