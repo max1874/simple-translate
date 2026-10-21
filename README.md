@@ -14,9 +14,9 @@
 
 ## 安装
 
-1. 下载或 clone 这个仓库。
-2. 打开 `chrome://extensions`，打开右上角的「开发者模式」，点「加载已解压的扩展程序」，选这个仓库的文件夹。
-3. 第一次点工具栏上的简单翻译图标会打开设置页。
+从 [Chrome 网上应用店](https://chromewebstore.google.com/detail/plain-translate/agbnnlocgcdpnkkbfooojejhnpcemiko)安装。第一次点工具栏上的简单翻译图标会打开设置页。
+
+想用这个仓库里最新的代码：clone 下来，打开 `chrome://extensions`，打开右上角的「开发者模式」，点「加载已解压的扩展程序」，选仓库文件夹。它和应用店版是两个扩展，设置不互通。
 
 ## 设置
 
@@ -45,7 +45,7 @@ Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文�
 任何兼容 OpenAI `/chat/completions` 接口的模型：OpenRouter、OpenAI、DeepSeek、本地 Ollama，或自定义地址。扩展免费（MIT），费用由你选的服务商按它的价格收；本地 Ollama 不用 key。
 
 **Chrome 网上应用店里能装吗？**
-还没上架，正在准备提交；上架前按上面「安装」一节加载已解压的扩展程序。它在应用店里的英文名是 Plain Translate；应用店里叫 Simple Translate 的是另一个扩展。
+能，[在这里](https://chromewebstore.google.com/detail/plain-translate/agbnnlocgcdpnkkbfooojejhnpcemiko)。它在应用店里的英文名是 Plain Translate；应用店里叫 Simple Translate 的是另一个扩展。
 
 更多说明见 <https://max1874.com/simple-translate/>。
 
@@ -84,7 +84,7 @@ Only after you turn translation on, the paragraphs being translated go to the on
 Any model behind an OpenAI-compatible `/chat/completions` endpoint: OpenRouter, OpenAI, DeepSeek, a local Ollama, or a custom address. The extension is free (MIT); the service you pick bills you at its rates, and a local Ollama needs no key.
 
 **Is it on the Chrome Web Store?**
-Not yet; it is being prepared for submission. Until then, load it unpacked as described under 安装 above. The Simple Translate listed on the store is a different extension.
+Yes: [Plain Translate on the Chrome Web Store](https://chromewebstore.google.com/detail/plain-translate/agbnnlocgcdpnkkbfooojejhnpcemiko). To run the latest code from this repository instead, load it unpacked as described under 安装 above; the two installs do not share settings. The Simple Translate listed on the store is a different extension.
 
 More at <https://max1874.com/simple-translate/>.
 

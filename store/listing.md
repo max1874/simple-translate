@@ -25,8 +25,9 @@ keep the `simple-translate` slug.
 - **Screenshots**: 1280×800, in `store/screenshots/`; `en-*` for the English
   listing (Chinese and Japanese pages translated into English), `zh-*` for the
   Chinese listing (English pages translated into Chinese). Taken 2026-10-16 with
-  DeepSeek V4.1 Flash on OpenRouter; the key shown on the settings page is a
-  placeholder.
+  DeepSeek V4.1 Flash on OpenRouter; `*-3-settings.png` retaken 2026-10-21 from
+  the 1.0.2 settings page (1024×640 at 1.25×). The key shown on the settings
+  page is a placeholder.
 - **Small promo tile**: 440×280, `store/promo-440x280.png` (English),
   `store/promo-440x280.zh.png` (Chinese); sources in `store/source/`
 - **Homepage URL**: https://max1874.com/simple-translate/
