@@ -117,9 +117,12 @@ nav .external {
   font-size: 12px;
 }
 
+/* Centred in the space beside the sidebar, as in chrome://settings: the page
+   opens in a full tab, not in a window sized to it. */
 main {
   width: 100%;
   max-width: 692px;
+  margin: 0 auto;
   padding: 22px 26px 40px;
 }
 
