@@ -317,6 +317,10 @@
         chars += due[0].source.length;
         batch.push(due.shift());
       }
+      // During playback the window moves on a sentence at a time; far ahead,
+      // a batch waits until it is full rather than repeating the
+      // instructions for every sentence (14 of 17 requests on 2026-10-31).
+      if (batch.length < size && batch[0].start > now + AHEAD_MS / 2) break;
       run(loaded, batch, translateSentences);
     }
   }

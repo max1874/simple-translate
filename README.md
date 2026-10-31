@@ -1,6 +1,6 @@
 # 简单翻译 Plain Translate
 
-简单翻译是一个开源、极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面。
+简单翻译是一个开源、极简的 Chrome 扩展，只做一件事：用你自己的大模型翻译正在读的网页，把译文放在每段原文下面；在 YouTube 视频页，翻译的是字幕。
 
 <a href="https://max1874.com/simple-translate/"><img src="docs/demo.zh.gif" width="800" alt="点工具栏图标后，译文逐段出现在原文下面"></a>
 
@@ -8,6 +8,7 @@
 
 - **一键开关**：点工具栏上的简单翻译图标，或按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>）开始翻译；再按一次，页面恢复原样。
 - **只翻你在看的**：屏幕上的段落先翻，往下滚再继续；每段翻完立刻显示，不等整批。
+- **YouTube 字幕**：在视频页点图标，只翻字幕，译文显示在原字幕下面，全屏也在。作者上传的字幕常把一句话拆成几条，这里拼回整句再翻；自动生成的字幕没有标点，由模型断句、加标点再翻译，句子仍按每个词的时间显示。作者传了你要的语言的字幕，直接显示，不调用模型。
 - **用你自己的模型和 key**：OpenRouter、OpenAI、DeepSeek、Ollama，或任何兼容 OpenAI 接口的服务。
 - **你不点，它就不动**：不在每个网页常驻脚本，不要「读取所有网站」的权限，没有统计上报，没有我们自己的服务器。网页文字只发给你选的那个服务。
 - **小**：纯 JavaScript，没有依赖，不用构建。
@@ -36,10 +37,10 @@
 ## 常见问题
 
 **和沉浸式翻译、Chrome 自带的翻译有什么区别？**
-Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文，译文放在下面，用你选的模型。沉浸式翻译同样是双语对照，还做 PDF、视频字幕等很多别的事；简单翻译只翻网页，没有账号，没有我们自己的服务器。
+Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文，译文放在下面，用你选的模型。沉浸式翻译同样是双语对照，还做 PDF、Netflix 等很多别的事；简单翻译只翻网页和 YouTube 字幕，没有账号，没有我们自己的服务器。
 
 **网页文字会发到哪里？**
-只在你打开翻译后，把要翻的段落发到你设置的那个服务地址。不发网址，不发给我们，也没有统计。
+只在你打开翻译后，把要翻的段落（在 YouTube 视频页是字幕，连同视频标题和频道名）发到你设置的那个服务地址。不发网址，不发给我们，也没有统计。
 
 **能用哪些模型？要花钱吗？**
 任何兼容 OpenAI `/chat/completions` 接口的模型：OpenRouter、OpenAI、DeepSeek、本地 Ollama，或自定义地址。扩展免费（MIT），费用由你选的服务商按它的价格收；本地 Ollama 不用 key。
@@ -56,26 +57,29 @@ Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文�
 - 段落里的链接、加粗、斜体等格式以 `<x1>…</x1>` 编号标签发给模型，行内代码、按键和图片以 `<x2/>` 占位、原样复制；译文按这些标签重建，所以保留原文的样式。和原文完全相同的译文（人名、标题）不显示。
 - 段落以 JSON 对象（`{"1": "...", "2": "..."}`）分批发给模型，屏幕上的每批 4 段、其余每批 8 段，返回同样的 key。回复缺 key，或者看起来错位了（某段译文里出现了另一段的格式标签——同一批的标签连续编号；两个 key 译文相同；某个 key 里是另一段的原文；某段的「译文长度 ÷ 原文长度」和同批其他段差得太多），整批丢弃，改成逐段重翻。只有通过检查的译文才进缓存。
 - 翻译开着的时候，后来加载的内容（无限滚动、单页应用改字、展开的折叠面板）也会补翻。
+- YouTube 视频页（`youtube.com/watch`）改为注入 `player.js`（在页面自己的环境里，读播放器）和 `subtitles.js`。字幕取 json3 格式：先用字幕轨自己的地址；YouTube 要求播放器生成的校验令牌时（地址里有 `exp=xpe`，直接请求返回空内容），改用播放器自己请求字幕的地址，没见到就让播放器重新请求一次。
+- 从当前播放位置往后翻两分钟，拖动进度条后从新位置开始。作者上传的字幕按句末标点、停顿和长度拼成整句，每次请求 3 句（快播到的）或 8 句。自动生成的字幕在停顿处切成 40–120 个词一段，模型返回带标点的句子和译文，再用编辑距离对齐回每个词的时间；对不上时退回按停顿切行、逐行翻译。每次请求带上视频标题、频道名和前两句的原文与译文，让人名和术语前后一致。
 
 ## 隐私
 
-设置（包括 API Key）保存在这个浏览器的 `chrome.storage.local` 里，网页本身读不到 key。网页文字只在你打开翻译后、只发给你设置的服务地址。扩展不发起其他任何网络请求。
+设置（包括 API Key）保存在这个浏览器的 `chrome.storage.local` 里，网页本身读不到 key。网页文字只在你打开翻译后、只发给你设置的服务地址。在 YouTube 视频页，扩展还会从 youtube.com 读取这个视频的字幕，和播放器自己读的是同一份。除此之外，扩展不发起其他任何网络请求。
 
 ## 已知限制
 
-- 只翻顶层页面，不翻 iframe 里的内容。
+- 只翻顶层页面，不翻 iframe 里的内容；所以嵌在其他网站里的 YouTube 视频也不翻字幕。
+- YouTube 的直播、Shorts 和手机版网页不翻字幕；没有字幕的视频翻不了。
 - flex 或 grid 布局里直接放着的短文字（多是按钮和菜单）不翻，因为译文插进去会排到原文旁边。
 - Wikipedia 的标题会把「[edit]」一起翻成「编辑」。
 - 屏幕上的段落每批只有 4 段，错位检查能用的样本少，主要靠「译文相同」和「某段是另一段原文」两项；批次小本身也让错位更少见。
 
 ## English
 
-Plain Translate (简单翻译) is an open-source, minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
+Plain Translate (简单翻译) is an open-source, minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph; on a YouTube video it translates the subtitles instead, joining split cues into sentences and letting the model punctuate and split auto-generated captions. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS); press again to restore the page. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed. Nothing runs until you click, there is no `<all_urls>` permission and no analytics, and page text goes only to the service you chose.
 
 ### FAQ
 
 **How is it different from Immersive Translate or Chrome's built-in translation?**
-Chrome's built-in translation replaces the page text using Google Translate; Plain Translate keeps the original and puts the translation below it, using the model you choose. Immersive Translate is also bilingual and does much more (PDFs, video subtitles); Plain Translate only translates web pages, with no account and no server of ours.
+Chrome's built-in translation replaces the page text using Google Translate; Plain Translate keeps the original and puts the translation below it, using the model you choose. Immersive Translate is also bilingual and does much more (PDFs, Netflix and more); Plain Translate only translates web pages and YouTube subtitles, with no account and no server of ours.
 
 **Where does the page text go?**
 Only after you turn translation on, the paragraphs being translated go to the one service address you set. The page URL is not sent, nothing comes to us, and there are no analytics.
