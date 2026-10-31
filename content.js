@@ -647,7 +647,7 @@
       fill(units[index], text, complete);
     }, (port) => inflight.set(units, port));
     inflight.delete(units);
-    const response = reply.type === 'done' ? { ok: true, translations: reply.translations } : { ok: false, error: reply.error };
+    const response = reply.type === 'done' ? { ok: true, translations: reply.result } : { ok: false, error: reply.error };
     if (gen !== generation) return;
     running--;
     if (reply.type === 'cancelled') {

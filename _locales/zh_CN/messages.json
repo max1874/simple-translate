@@ -162,5 +162,14 @@
   },
   "badAddress": {
     "message": "请填写以 https:// 或 http:// 开头的地址。"
+  },
+  "noSubtitles": {
+    "message": "这个视频没有可以翻译的字幕。"
+  },
+  "subtitlesInTarget": {
+    "message": "这个视频的字幕已经是你要的语言。"
+  },
+  "subtitlesUnavailable": {
+    "message": "YouTube 没有返回这个视频的字幕。"
   }
 }

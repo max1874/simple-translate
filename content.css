@@ -63,3 +63,55 @@
   word-break: break-word;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
+
+/* Subtitles over a YouTube video: the original line above its translation,
+   sized to the player so they scale with it, also in fullscreen. */
+.simple-translate-subtitles-on .ytp-caption-window-container {
+  display: none !important;
+}
+
+.simple-translate-subtitles {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  container-type: size;
+  pointer-events: none;
+}
+
+.simple-translate-subtitles > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqh;
+  max-width: 88cqw;
+  margin-bottom: 4cqh;
+  text-align: center;
+  transition: margin-bottom 0.2s;
+}
+
+/* Clear of the controls while they show. */
+.html5-video-player:not(.ytp-autohide) .simple-translate-subtitles > div {
+  margin-bottom: calc(4cqh + 52px);
+}
+
+.ad-showing .simple-translate-subtitles {
+  display: none;
+}
+
+.simple-translate-subtitles span {
+  padding: 0.05em 0.35em;
+  border-radius: 0.15em;
+  background: rgb(8 8 8 / 0.75);
+  color: #fff;
+  font: max(12px, 3.4cqh)/1.4 "YouTube Noto", Roboto, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.simple-translate-subtitles-translation span {
+  font-size: max(14px, 4.2cqh);
+}

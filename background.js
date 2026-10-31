@@ -25,20 +25,27 @@ async function toggleTab(tab) {
   const service = serviceConfig(config);
   const target = { tabId: tab.id };
   try {
-    const [{ result: loaded }] = await chrome.scripting.executeScript({
+    // On a YouTube video only the subtitles are translated.
+    const [{ result: page }] = await chrome.scripting.executeScript({
       target,
-      func: () => Boolean(globalThis.__simpleTranslate?.alive()),
+      func: () => {
+        const video = /^(www\.)?youtube\.com$/.test(location.hostname) && location.pathname === '/watch';
+        const name = video ? '__simpleTranslateSubtitles' : '__simpleTranslate';
+        return { video, name, loaded: Boolean(globalThis[name]?.alive()) };
+      },
     });
-    if (!loaded) {
+    if (!page.loaded) {
       await chrome.scripting.insertCSS({ target, files: ['content.css'] });
-      await chrome.scripting.executeScript({ target, files: ['common.js', 'content.js'] });
+      // The player's object lives in the page's own world.
+      if (page.video) await chrome.scripting.executeScript({ target, files: ['player.js'], world: 'MAIN' });
+      await chrome.scripting.executeScript({ target, files: ['common.js', page.video ? 'subtitles.js' : 'content.js'] });
     }
     // Only what the page needs; the API key stays out of the page's process.
     // `model` keys the page's cache, so it names everything that changes output.
     await chrome.scripting.executeScript({
       target,
-      func: (pageConfig) => globalThis.__simpleTranslate.toggle(pageConfig),
-      args: [{ targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') }],
+      func: (name, pageConfig) => globalThis[name].toggle(pageConfig),
+      args: [page.name, { targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') }],
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
@@ -48,9 +55,16 @@ async function toggleTab(tab) {
 
 // Pages translate over a port: each finished paragraph is posted as soon as
 // the model has written it, and closing the port (translation turned off)
-// aborts the request.
+// aborts the request. `video` (title, channel, the lines before) marks
+// subtitles; 'segment' turns speech recognition into translated sentences.
+const JOBS = {
+  translate: ({ texts, video }, post, signal) => translate(texts, (index, text, complete) => post({ type: 'item', index, text, complete }), signal, video),
+  segment: ({ text, video }, _post, signal) => segment(text, video, signal),
+};
+
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'translate') return;
+  const job = JOBS[port.name];
+  if (!job) return;
   const controller = new AbortController();
   port.onDisconnect.addListener(() => controller.abort());
   const post = (message) => {
@@ -58,11 +72,11 @@ chrome.runtime.onConnect.addListener((port) => {
       port.postMessage(message);
     } catch {}
   };
-  port.onMessage.addListener(({ texts }) => {
+  port.onMessage.addListener((message) => {
     hold();
-    translate(texts, (index, text, complete) => post({ type: 'item', index, text, complete }), controller.signal)
+    job(message, post, controller.signal)
       .then(
-        (translations) => post({ type: 'done', translations }),
+        (result) => post({ type: 'done', result }),
         (error) => post({ type: 'error', error: error.message }),
       )
       .finally(() => {
@@ -105,8 +119,8 @@ function release() {
 // onItem(index, text, complete) is called as text arrives: with the growing
 // text of a single paragraph, or with each paragraph of a batch once it is
 // complete.
-async function translate(texts, onItem = () => {}, signal) {
-  const config = await loadConfig();
+async function translate(texts, onItem = () => {}, signal, video) {
+  const config = { ...await loadConfig(), video };
   if (!isConfigured(config)) throw new Error(chrome.i18n.getMessage('missingConfig'));
   // A paragraph with formatting goes as a one-entry batch even alone: in the
   // JSON form models keep the tags, as plain text they often drop them all.
@@ -175,12 +189,47 @@ function ownTags(text, { first, count }) {
 
 function systemPrompt(config, batch, tagged) {
   const lang = languageName(config.targetLang);
+  const { video } = config;
   let keep = 'Keep code, URLs, numbers and names that are normally left untranslated as they are. Do not add notes or explanations.';
   if (tagged) keep += ' Tags like <x1>…</x1> mark formatting: keep each one around the translated words it marks, and translate the words inside like the rest: tagged words are usually links or emphasis, not names. Keep each <x2/>-style tag, unchanged, where it belongs in the sentence.';
+  const source = video ? `the subtitles of the video ${videoName(video)}` : 'text from web pages';
+  if (video) keep += ` Write each translation as a natural subtitle, as concise as the original.${previously(video)}`;
   if (!batch) {
-    return `You translate text from web pages into ${lang}. Reply with only the translation of the user's text. ${keep}`;
+    return `You translate ${source} into ${lang}. Reply with only the translation of the user's text. ${keep}`;
   }
-  return `You translate text from web pages into ${lang}. The user sends a JSON object whose values are paragraphs from the same page, in reading order. Reply with only a JSON object that has exactly the same keys, where each value is the ${lang} translation of the paragraph under that key. ${keep}`;
+  const [items, item] = video ? ['consecutive sentences of the subtitles', 'sentence'] : ['paragraphs from the same page', 'paragraph'];
+  return `You translate ${source} into ${lang}. The user sends a JSON object whose values are ${items}, in reading order. Reply with only a JSON object that has exactly the same keys, where each value is the ${lang} translation of the ${item} under that key. ${keep}`;
+}
+
+// The title and the lines just before let a subtitle request keep names and
+// terms the same throughout the video.
+function videoName(video) {
+  return JSON.stringify(video.title) + (video.channel ? ` by ${video.channel}` : '');
+}
+
+function previously(video) {
+  if (!video.before?.length) return '';
+  return ` For context, the subtitles just before, each followed by its translation:\n${video.before.map((p) => `${p.source}\n${p.translation}`).join('\n')}`;
+}
+
+// Speech recognition comes without punctuation or sentences. The model splits
+// it into sentences, punctuates and translates them in one reply; subtitles.js
+// matches the sentences back to the words' timings. A reply that is not such a
+// list is null, and subtitles.js falls back to lines cut at pauses.
+async function segment(text, video, signal) {
+  const config = await loadConfig();
+  if (!isConfigured(config)) throw new Error(chrome.i18n.getMessage('missingConfig'));
+  const lang = languageName(config.targetLang);
+  const system = `You prepare the subtitles of the video ${videoName(video)}. The user sends text from automatic speech recognition, without punctuation. Split it into sentences, and split long sentences at natural pauses so that each part reads as one subtitle of at most about 20 words. Write each part with punctuation and capitalization, keeping all its words in order without adding, dropping or summarizing any, and translate it into ${lang} as a natural, concise subtitle. Keep names that are normally left untranslated as they are. Reply with only a JSON array of objects {"s": part, "t": translation} that covers all of the text in order.${previously(video)}`;
+  const reply = await chat(config, system, text, () => {}, signal);
+  let parts;
+  try {
+    parts = JSON.parse(reply.slice(reply.indexOf('['), reply.lastIndexOf(']') + 1));
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parts) || !parts.length || !parts.every((p) => typeof p?.s === 'string' && typeof p?.t === 'string')) return null;
+  return parts.map((p) => ({ source: p.s.trim(), translation: p.t.trim() }));
 }
 
 async function translateOne(config, text, onText, signal) {

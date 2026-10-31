@@ -162,5 +162,14 @@
   },
   "badAddress": {
     "message": "Enter an address that starts with https:// or http://."
+  },
+  "noSubtitles": {
+    "message": "This video has no subtitles to translate."
+  },
+  "subtitlesInTarget": {
+    "message": "This video's subtitles are already in the language you read."
+  },
+  "subtitlesUnavailable": {
+    "message": "YouTube did not return this video's subtitles."
   }
 }
