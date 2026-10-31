@@ -10,6 +10,7 @@
   // and after a seek the new position goes first.
   const AHEAD_MS = 120_000;
   const MAX_REQUESTS = 3;
+  const RETRY_MS = 10_000;
   // Sentences per request: few near the playhead, so they arrive in time.
   const NEAR_MS = 10_000;
   const BATCH_NEAR = 3;
@@ -44,6 +45,8 @@
   let state = null;
   let running = 0;
   let turnedCaptionsOn = false;
+  // The video being prepared, so a second navigation event does not start it again.
+  let loading = null;
   let root = null;
   let frame = 0;
   let shown = [];
@@ -75,8 +78,12 @@
 
   async function load() {
     const id = videoId();
-    if (!on || state?.id === id) return;
+    if (!on || (state?.id ?? loading) === id) return;
+    // Another video: what is still being translated for the last one is no
+    // longer watched.
+    cancel();
     state = null;
+    loading = id;
     if (!id) return;
     const gen = generation;
     // After YouTube changes the address the player takes a moment to switch.
@@ -85,9 +92,10 @@
       info = ask('video');
       if (info?.id !== id) await sleep(250);
     }
-    if (info?.id !== id) return;
-    const loaded = memory.get(id) ?? await prepare(info);
-    if (gen !== generation || videoId() !== id || !loaded) return;
+    const loaded = info?.id === id ? memory.get(id) ?? await prepare(info) : null;
+    if (gen !== generation) return;
+    loading = null;
+    if (videoId() !== id || !loaded) return;
     memory.set(id, loaded);
     state = loaded;
     pump();
@@ -149,7 +157,7 @@
     // to this track. If none was seen, the player is made to request them.
     let url = ask('captionUrl', id);
     if (!url) {
-      turnedCaptionsOn ||= ask('requestCaptions');
+      turnedCaptionsOn = ask('requestCaptions') || turnedCaptionsOn;
       for (let i = 0; i < 20 && !url; i++) {
         await sleep(250);
         url = ask('captionUrl', id);
@@ -259,9 +267,19 @@
     }
     first[0] = 0;
     if (first.includes(-1)) return null;
-    return sentences.map((s, k) => {
-      const last = (first[k + 1] ?? words.length) - 1;
-      return { start: words[first[k]].time, end: words[last].end, ...s };
+    // A word can hold several tokens (every character, in Chinese and
+    // Japanese), so two sentences may start in the same word: they share it.
+    const parts = [];
+    sentences.forEach((s, k) => {
+      const prev = parts.at(-1);
+      if (prev && first[k] <= prev.from) {
+        prev.source = joined([prev.source, s.source]);
+        prev.translation = joined([prev.translation, s.translation]);
+      } else parts.push({ from: first[k], ...s });
+    });
+    return parts.map(({ from, source, translation }, k) => {
+      const last = (parts[k + 1]?.from ?? words.length) - 1;
+      return { start: words[from].time, end: words[last].end, source, translation };
     });
   }
 
@@ -275,9 +293,15 @@
 
   // Each line stays long enough to be read (about 9 CJK characters or 17
   // others a second) without running into the next, and a gap under a second
-  // is bridged so the line does not blink.
-  function timed(lines) {
-    lines.sort((a, b) => a.start - b.start);
+  // is bridged so the line does not blink. Lines starting together (two
+  // speakers) are shown together.
+  function timed(input) {
+    const lines = [];
+    for (const line of input.sort((a, b) => a.start - b.start)) {
+      const prev = lines.at(-1);
+      if (prev?.start === line.start) lines[lines.length - 1] = { ...prev, end: Math.max(prev.end, line.end), text: `${prev.text}\n${line.text}` };
+      else lines.push(line);
+    }
     return lines.map((line, i) => {
       const next = lines[i + 1]?.start ?? Infinity;
       const cjk = line.text.match(CJK)?.length ?? 0;
@@ -335,10 +359,23 @@
     } catch (e) {
       error = e;
     }
-    // Stopped meanwhile: stop() has reset the units and the count.
+    // Cancelled meanwhile: cancel() has reset the units and the count.
     if (gen !== generation) return;
     running--;
-    for (const unit of units) unit.state = error ? 'failed' : 'done';
+    for (const unit of units) {
+      if (!error) unit.state = 'done';
+      // Once more after a pause, for a passing failure such as a rate limit.
+      else if (unit.retried) unit.state = 'failed';
+      else {
+        unit.retried = true;
+        unit.state = 'waiting';
+        setTimeout(() => {
+          if (unit.state !== 'waiting') return;
+          unit.state = undefined;
+          pump();
+        }, RETRY_MS);
+      }
+    }
     if (error) toast(`${chrome.i18n.getMessage('translateFailed')}: ${error.message}`);
     rebuild(loaded);
     pump();
@@ -467,17 +504,29 @@
     load();
   }
 
-  function stop() {
-    on = false;
+  // Drops every request in flight and every load under way. Unfinished and
+  // failed units are tried afresh when their video is shown again.
+  function cancel() {
     generation++;
     running = 0;
+    loading = null;
     // Disconnecting aborts the model request in the service worker.
     for (const [port, settle] of ports) {
       port.disconnect();
-      settle({ type: 'error', error: 'stopped' });
+      settle({ type: 'error', error: 'cancelled' });
     }
-    // Unfinished and failed units are tried again when turned back on.
-    for (const loaded of memory.values()) for (const unit of loaded.units) if (unit.state !== 'done') unit.state = undefined;
+    for (const loaded of memory.values()) {
+      for (const unit of loaded.units) {
+        if (unit.state === 'done') continue;
+        unit.state = undefined;
+        unit.retried = false;
+      }
+    }
+  }
+
+  function stop() {
+    on = false;
+    cancel();
     document.removeEventListener('timeupdate', pump, true);
     document.removeEventListener('seeked', pump, true);
     document.removeEventListener('yt-navigate-finish', load);
@@ -492,7 +541,8 @@
 
   globalThis.__simpleTranslateSubtitles = {
     alive: () => Boolean(chrome.runtime?.id),
-    toggle: (pageConfig) => (on ? stop() : start(pageConfig)),
+    active: () => on,
+    start,
     stop,
   };
 })();

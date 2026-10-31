@@ -110,6 +110,8 @@
   font: max(12px, 3.4cqh)/1.4 "YouTube Noto", Roboto, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+  /* Two lines that start together are shown on separate lines. */
+  white-space: pre-line;
 }
 
 .simple-translate-subtitles-translation span {

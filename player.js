@@ -20,6 +20,7 @@
   new PerformanceObserver((list) => note(list.getEntries())).observe({ type: 'resource' });
 
   const player = () => document.getElementById('movie_player');
+  let turningOn = 0;
   const captionsShown = () => player()?.querySelector('.ytp-subtitles-button')?.getAttribute('aria-pressed') === 'true';
 
   const answers = {
@@ -43,10 +44,13 @@
       if (!player()) return false;
       const shown = captionsShown();
       if (shown) player().toggleSubtitles();
-      setTimeout(() => player().toggleSubtitles(), 100);
+      clearTimeout(turningOn);
+      turningOn = setTimeout(() => player().toggleSubtitles(), 100);
       return !shown;
     },
+    // Only after requestCaptions turned them on, which may still be pending.
     captionsOff() {
+      clearTimeout(turningOn);
       if (captionsShown()) player().toggleSubtitles();
       return true;
     },

@@ -25,15 +25,20 @@ async function toggleTab(tab) {
   const service = serviceConfig(config);
   const target = { tabId: tab.id };
   try {
-    // On a YouTube video only the subtitles are translated.
+    // A click turns off whatever is on, which on YouTube may be the other
+    // mode: the site moves between pages without reloading. Otherwise it
+    // starts the page's mode; on a YouTube video only the subtitles.
     const [{ result: page }] = await chrome.scripting.executeScript({
       target,
       func: () => {
+        const on = [globalThis.__simpleTranslate, globalThis.__simpleTranslateSubtitles].filter((m) => m?.alive() && m.active());
+        on.forEach((m) => m.stop());
         const video = /^(www\.)?youtube\.com$/.test(location.hostname) && location.pathname === '/watch';
         const name = video ? '__simpleTranslateSubtitles' : '__simpleTranslate';
-        return { video, name, loaded: Boolean(globalThis[name]?.alive()) };
+        return { stopped: on.length > 0, video, name, loaded: Boolean(globalThis[name]?.alive()) };
       },
     });
+    if (page.stopped) return;
     if (!page.loaded) {
       await chrome.scripting.insertCSS({ target, files: ['content.css'] });
       // The player's object lives in the page's own world.
@@ -44,7 +49,7 @@ async function toggleTab(tab) {
     // `model` keys the page's cache, so it names everything that changes output.
     await chrome.scripting.executeScript({
       target,
-      func: (name, pageConfig) => globalThis[name].toggle(pageConfig),
+      func: (name, pageConfig) => globalThis[name].start(pageConfig),
       args: [page.name, { targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') }],
     });
   } catch (error) {

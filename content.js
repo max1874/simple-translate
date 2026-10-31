@@ -799,7 +799,8 @@
 
   globalThis.__simpleTranslate = {
     alive: () => Boolean(chrome.runtime?.id),
-    toggle: (config) => (on ? stop() : start(config)),
+    active: () => on,
+    start,
     stop,
   };
 })();
