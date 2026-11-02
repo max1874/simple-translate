@@ -20,6 +20,11 @@
   // translates badly; cues are joined back into sentences, closed by end
   // punctuation, a pause or sheer length.
   const SENTENCE_END = /[.!?。！？…]["'”’)\]]*$/u;
+  // Chinese subtitles are usually written without punctuation: no cue of
+  // three talks (2,162 cues) had a sentence end, against a third to a half
+  // of the cues of two English ones (2026-11-02). Below this share there are
+  // no sentences to join, and the model makes them as for speech recognition.
+  const PUNCTUATED = 0.1;
   const SENTENCE_CUES = 4;
   const SENTENCE_CHARS = 200;
   const SENTENCE_PAUSE_MS = 2000;
@@ -36,8 +41,16 @@
   const MISMATCH = 0.3;
   // Shown, not translated.
   const SOUND = /^[\[(（【♪].*[\])）】♪]$/u;
-  const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
-  const TOKEN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|[\p{L}\p{N}]+/gu;
+  // Chinese and Japanese are written without spaces; each character is a word.
+  const CJK_SCRIPTS = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}';
+  const CJK = new RegExp(`[${CJK_SCRIPTS}]`, 'gu');
+  // Nor around their full-width punctuation.
+  const UNSPACED = `${CJK_SCRIPTS}\\u3000-\\u303F\\uFF00-\\uFFEF`;
+  const UNSPACED_START = new RegExp(`^[${UNSPACED}]`, 'u');
+  const UNSPACED_END = new RegExp(`[${UNSPACED}]$`, 'u');
+  // Letters count as Chinese characters too: a run of them stops at one.
+  const TOKEN = new RegExp(`[${CJK_SCRIPTS}]|(?:(?![${CJK_SCRIPTS}])[\\p{L}\\p{N}])+`, 'gu');
+  const WORD = new RegExp(`[${CJK_SCRIPTS}]|[^\\s${CJK_SCRIPTS}]+`, 'gu');
 
   let on = false;
   let generation = 0;
@@ -60,7 +73,8 @@
   const video = () => document.querySelector('#movie_player video');
   const videoId = () => (location.pathname === '/watch' ? new URLSearchParams(location.search).get('v') : null);
   const tokens = (text) => text.toLowerCase().match(TOKEN) ?? [];
-  const joined = (texts) => texts.join(texts.some((t) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]$/u.test(t)) ? '' : ' ');
+  // Spaced, except next to Chinese or Japanese.
+  const joined = (texts) => texts.reduce((text, next) => (text && next && !UNSPACED_END.test(text) && !UNSPACED_START.test(next) ? `${text} ${next}` : text + next), '');
 
   function ask(name, arg) {
     const id = Math.random().toString(36).slice(2);
@@ -111,7 +125,10 @@
     if (languageKey(source.lang) === target) return fail(chrome.i18n.getMessage('subtitlesInTarget'));
     const events = await captions(info.id, source);
     if (!events.length) return fail(chrome.i18n.getMessage('subtitlesUnavailable'));
-    const loaded = { id: info.id, video: { title: info.title, channel: info.channel }, asr: source.asr, cues: [], lines: [], units: [] };
+    const cues = cuesOf(events);
+    const punctuated = cues.filter((c) => /[.!?。！？…]/u.test(c.text)).length >= PUNCTUATED * cues.length;
+    // segment: the model makes the sentences.
+    const loaded = { id: info.id, video: { title: info.title, channel: info.channel }, segment: source.asr || !punctuated, cues: [], lines: [], units: [] };
     // Subtitles the uploader wrote in the target language need no model. A
     // track named for the exact variant goes first: a bare "zh" may hold
     // traditional characters (3Blue1Brown's does).
@@ -119,14 +136,16 @@
       ?? uploaded.find((t) => languageKey(t.lang) === target);
     const theirs = written ? await captions(info.id, written) : [];
     if (theirs.length) {
-      loaded.cues = timed(cuesOf(events));
+      loaded.cues = timed(cues);
       loaded.lines = timed(cuesOf(theirs));
       return loaded;
     }
     if (source.asr) {
-      loaded.units = chunks(wordsOf(events));
+      loaded.units = chunks(wordsOf(events), lines);
+    } else if (!punctuated) {
+      loaded.units = unpunctuated(cues);
     } else {
-      loaded.cues = timed(cuesOf(events));
+      loaded.cues = timed(cues);
       loaded.units = sentences(loaded.cues);
     }
     rebuild(loaded);
@@ -208,8 +227,44 @@
     return words;
   }
 
+  // Subtitles without punctuation: chunks of words as for speech recognition.
+  // Until the model's sentences arrive, or if they cannot be placed, the cues
+  // themselves are shown and translated. A sound cue ends a chunk and is
+  // shown as it is, never sent.
+  function unpunctuated(cues) {
+    const units = [];
+    let run = [];
+    const flush = () => {
+      units.push(...chunks(wordsIn(run), (words) => words.filter((w) => w.cue).map(({ cue }) => ({ start: cue.start, end: cue.end, source: cue.text }))));
+      run = [];
+    };
+    for (const cue of cues) {
+      if (!SOUND.test(cue.text)) {
+        run.push(cue);
+        continue;
+      }
+      flush();
+      units.push({ start: cue.start, end: cue.end, state: 'done', parts: [{ start: cue.start, end: cue.end, source: cue.text }] });
+    }
+    flush();
+    return units;
+  }
+
+  // Subtitles without word times: a cue's words share its time evenly. The
+  // first word carries the cue.
+  function wordsIn(cues) {
+    return cues.flatMap((cue) => {
+      const texts = cue.text.match(WORD);
+      const step = (cue.end - cue.start) / texts.length;
+      return texts.map((text, k) => ({ text, time: cue.start + k * step, end: cue.start + (k + 1) * step, cue: k ? null : cue }));
+    });
+  }
+
   const textOf = (words) => joined(words.map((w) => w.text));
   const pauseAfter = (words, i) => (words[i + 1]?.time ?? Infinity) - words[i].time;
+  // Speech recognition can be cut after any word, subtitles split into words
+  // only at the end of a cue.
+  const endsCue = (words, i) => words[i + 1]?.cue !== null;
 
   // Cuts words into runs of [min, max] words, at a pause once there are min.
   // A run reaching max is cut at its longest pause after min.
@@ -219,10 +274,9 @@
     for (let i = 0; i < words.length; i++) {
       const count = i - start + 1;
       let end = -1;
-      if (i === words.length - 1 || (count >= min && pauseAfter(words, i) >= pause)) end = i;
+      if (i === words.length - 1 || (count >= min && endsCue(words, i) && pauseAfter(words, i) >= pause)) end = i;
       else if (count >= max) {
-        end = start + min - 1;
-        for (let j = end; j <= i; j++) if (pauseAfter(words, j) > pauseAfter(words, end)) end = j;
+        for (let j = start + min - 1; j <= i; j++) if (endsCue(words, j) && (end < 0 || pauseAfter(words, j) > pauseAfter(words, end))) end = j;
       }
       if (end < 0) continue;
       runs.push(words.slice(start, end + 1));
@@ -236,8 +290,9 @@
     return cut(words, [3, LINE_WORDS], LINE_PAUSE_MS).map((run) => ({ start: run[0].time, end: run.at(-1).end, source: textOf(run) }));
   }
 
-  function chunks(words) {
-    return cut(words, CHUNK_WORDS, CHUNK_PAUSE_MS).map((run) => ({ start: run[0].time, end: run.at(-1).end, words: run, parts: lines(run) }));
+  // parts: what is shown until the model's sentences arrive.
+  function chunks(words, parts) {
+    return cut(words, CHUNK_WORDS, CHUNK_PAUSE_MS).map((run) => ({ start: run[0].time, end: run.at(-1).end, words: run, parts: parts(run) }));
   }
 
   // Places the model's sentences on the recognized words: an edit-distance
@@ -283,30 +338,38 @@
     });
   }
 
-  // What is on screen comes from the units: their translated parts, and for
-  // speech recognition also the sentences shown as the original.
+  // What is on screen comes from the units: their translated parts, and when
+  // the model makes the sentences also the original shown.
   function rebuild(loaded) {
     const parts = loaded.units.flatMap((u) => u.parts);
-    if (loaded.asr) loaded.cues = timed(parts.map((p) => ({ start: p.start, end: p.end, text: p.source })));
-    loaded.lines = timed(parts.filter((p) => p.translation).map((p) => ({ start: p.start, end: p.end, text: p.translation })));
+    if (!loaded.segment) {
+      loaded.lines = timed(parts.filter((p) => p.translation).map((p) => ({ start: p.start, end: p.end, text: p.translation })));
+      return;
+    }
+    // Both rows on one timeline: a sentence and its translation are read
+    // together and leave together, and no translation outstays its sentence.
+    const row = (text) => (p) => ({ start: p.start, end: p.end, text: text(p), read: p.source + (p.translation ?? '') });
+    loaded.cues = timed(parts.map(row((p) => p.source)));
+    loaded.lines = timed(parts.map(row((p) => p.translation ?? '')));
   }
 
   // Each line stays long enough to be read (about 9 CJK characters or 17
-  // others a second) without running into the next, and a gap under a second
+  // others a second, of its read text if given) without running into the next, and a gap under a second
   // is bridged so the line does not blink. Lines starting together (two
   // speakers) are shown together.
   function timed(input) {
     const lines = [];
     for (const line of input.sort((a, b) => a.start - b.start)) {
       const prev = lines.at(-1);
-      if (prev?.start === line.start) lines[lines.length - 1] = { ...prev, end: Math.max(prev.end, line.end), text: `${prev.text}\n${line.text}` };
+      if (prev?.start === line.start) lines[lines.length - 1] = { start: prev.start, end: Math.max(prev.end, line.end), text: `${prev.text}\n${line.text}`, read: `${prev.read ?? prev.text}\n${line.read ?? line.text}` };
       else lines.push(line);
     }
     return lines.map((line, i) => {
       const next = lines[i + 1]?.start ?? Infinity;
-      const cjk = line.text.match(CJK)?.length ?? 0;
-      const end = Math.max(line.end, line.start + 600 + 110 * cjk + 60 * (line.text.length - cjk));
-      return { ...line, end: next - end < 1000 ? next : Math.min(next, end) };
+      const read = line.read ?? line.text;
+      const cjk = read.match(CJK)?.length ?? 0;
+      const end = Math.max(line.end, line.start + 600 + 110 * cjk + 60 * (read.length - cjk));
+      return { start: line.start, end: next - end < 1000 ? next : Math.min(next, end), text: line.text };
     });
   }
 
@@ -330,7 +393,7 @@
     const now = video().currentTime * 1000;
     const due = loaded.units.filter((u) => !u.state && u.end > now && u.start < now + AHEAD_MS);
     while (running < MAX_REQUESTS && due.length) {
-      if (loaded.asr) {
+      if (loaded.segment) {
         run(loaded, [due.shift()], segmentChunk);
         continue;
       }
@@ -394,7 +457,7 @@
       chunk.parts = parts;
       return;
     }
-    console.warn('Plain Translate: sentences do not match the recognized words; translating lines cut at pauses');
+    console.warn('Plain Translate: sentences do not match the subtitle words; translating them as shown');
     const translations = await call('translate', { texts: chunk.parts.map((p) => p.source), video: about });
     chunk.parts = chunk.parts.map((p, i) => ({ ...p, translation: translations[i].trim() }));
   }

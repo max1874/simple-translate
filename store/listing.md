@@ -35,7 +35,9 @@ for a passkey re-check now and then, which only Max can do.
   the 1.0.2 settings page (1024×640 at 1.25×). The key shown on the settings
   page is a placeholder. `zh-4-youtube-subtitles.png` (2026-11-02, Chinese
   listing only) is a 1.1.0 YouTube video with DeepSeek `deepseek-flash`
-  subtitles, cropped from the player.
+  subtitles, cropped from the player; `en-4-youtube-subtitles.png`
+  (2026-11-02, English listing only) the same for a Chinese talk translated
+  into English by 1.1.1.
 - **Small promo tile**: 440×280, `store/promo-440x280.png` (English),
   `store/promo-440x280.zh.png` (Chinese); sources in `store/source/`
 - **Homepage URL**: https://max1874.com/simple-translate/
@@ -47,7 +49,7 @@ Plain Translate translates the page you are reading with your own LLM and puts e
 
 • One key to toggle — click the toolbar icon or press Alt+A (⌥A on macOS). Press again and the page is back to how it was.
 
-• YouTube subtitles — on a YouTube video only the subtitles are translated, shown under the original line inside the player, full screen too. Uploaded subtitles are joined into whole sentences before translating; automatic captions are punctuated and split into sentences by your model in the same request. The video's title, channel and the previous lines go along, so names and terms stay consistent. When the uploader already provides subtitles in your language, those are shown and no model is called.
+• YouTube subtitles — on a YouTube video only the subtitles are translated, shown under the original line inside the player, full screen too. Uploaded subtitles are joined into whole sentences before translating; automatic captions, and subtitles written without punctuation as Chinese ones usually are, are punctuated and split into sentences by your model in the same request. The video's title, channel and the previous lines go along, so names and terms stay consistent. When the uploader already provides subtitles in your language, those are shown and no model is called.
 
 • What you are reading comes first — paragraphs on screen are translated first, in parallel, and each appears as soon as it is written. The rest follow as you scroll; content loaded later by infinite scroll or single-page apps is translated too.
 
@@ -69,7 +71,7 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 • 一键开关——点工具栏图标或按 ⌥A（Windows / Linux 上是 Alt+A）。再按一次，页面恢复原样。
 
-• YouTube 字幕——在 YouTube 视频页只翻字幕，译文显示在播放器里的原文字幕下面，全屏也有。人工字幕先拼回整句再翻；自动生成的字幕由你的模型在同一次请求里加标点、断句、翻译。视频标题、频道名和前几句一起发过去，人名和术语前后一致。作者已经传了你要的语言的字幕，就直接显示，不调模型。
+• YouTube 字幕——在 YouTube 视频页只翻字幕，译文显示在播放器里的原文字幕下面，全屏也有。人工字幕先拼回整句再翻；自动生成的字幕，以及中文这类不带标点的字幕，由你的模型在同一次请求里加标点、断句、翻译。视频标题、频道名和前几句一起发过去，人名和术语前后一致。作者已经传了你要的语言的字幕，就直接显示，不调模型。
 
 • 先翻你在看的——屏幕上的段落先翻、并行发出，每段写完立刻显示；往下滚再继续。无限滚动、单页应用后来加载的内容也会补翻。
 

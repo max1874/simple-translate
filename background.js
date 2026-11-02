@@ -217,15 +217,16 @@ function previously(video) {
   return ` For context, the subtitles just before, each followed by its translation:\n${video.before.map((p) => `${p.source}\n${p.translation}`).join('\n')}`;
 }
 
-// Speech recognition comes without punctuation or sentences. The model splits
-// it into sentences, punctuates and translates them in one reply; subtitles.js
-// matches the sentences back to the words' timings. A reply that is not such a
-// list is null, and subtitles.js falls back to lines cut at pauses.
+// Speech recognition, and Chinese subtitles as usually written, come without
+// punctuation or sentences. The model splits the text into sentences,
+// punctuates and translates them in one reply; subtitles.js matches the
+// sentences back to the words' timings. A reply that is not such a list is
+// null, and subtitles.js translates the lines it shows instead.
 async function segment(text, video, signal) {
   const config = await loadConfig();
   if (!isConfigured(config)) throw new Error(chrome.i18n.getMessage('missingConfig'));
   const lang = languageName(config.targetLang);
-  const system = `You prepare the subtitles of the video ${videoName(video)}. The user sends text from automatic speech recognition, without punctuation. Split it into sentences, and split long sentences at natural pauses so that each part reads as one subtitle of at most about 20 words. Write each part with punctuation and capitalization, keeping all its words in order without adding, dropping or summarizing any, and translate it into ${lang} as a natural, concise subtitle. Keep names that are normally left untranslated as they are. Reply with only a JSON array of objects {"s": part, "t": translation} that covers all of the text in order.${previously(video)}`;
+  const system = `You prepare the subtitles of the video ${videoName(video)}. The user sends what is said in it as text without punctuation, from automatic speech recognition or from subtitles written without it. Split it into sentences, and split long sentences at natural pauses so that each part reads as one subtitle of at most about 20 words. Write each part with punctuation and capitalization, keeping all its words in order without adding, dropping or summarizing any, and translate it into ${lang} as a natural, concise subtitle. Keep names that are normally left untranslated as they are. Reply with only a JSON array of objects {"s": part, "t": translation} that covers all of the text in order.${previously(video)}`;
   const reply = await chat(config, system, text, () => {}, signal);
   let parts;
   try {
