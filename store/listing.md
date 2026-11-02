@@ -33,7 +33,9 @@ for a passkey re-check now and then, which only Max can do.
   Chinese listing (English pages translated into Chinese). Taken 2026-10-16 with
   DeepSeek V4.1 Flash on OpenRouter; `*-3-settings.png` retaken 2026-10-21 from
   the 1.0.2 settings page (1024×640 at 1.25×). The key shown on the settings
-  page is a placeholder.
+  page is a placeholder. `zh-4-youtube-subtitles.png` (2026-11-02, Chinese
+  listing only) is a 1.1.0 YouTube video with DeepSeek `deepseek-flash`
+  subtitles, cropped from the player.
 - **Small promo tile**: 440×280, `store/promo-440x280.png` (English),
   `store/promo-440x280.zh.png` (Chinese); sources in `store/source/`
 - **Homepage URL**: https://max1874.com/simple-translate/
@@ -44,6 +46,8 @@ for a passkey re-check now and then, which only Max can do.
 Plain Translate translates the page you are reading with your own LLM and puts each translation under its paragraph. The original stays as it is.
 
 • One key to toggle — click the toolbar icon or press Alt+A (⌥A on macOS). Press again and the page is back to how it was.
+
+• YouTube subtitles — on a YouTube video only the subtitles are translated, shown under the original line inside the player, full screen too. Uploaded subtitles are joined into whole sentences before translating; automatic captions are punctuated and split into sentences by your model in the same request. The video's title, channel and the previous lines go along, so names and terms stay consistent. When the uploader already provides subtitles in your language, those are shown and no model is called.
 
 • What you are reading comes first — paragraphs on screen are translated first, in parallel, and each appears as soon as it is written. The rest follow as you scroll; content loaded later by infinite scroll or single-page apps is translated too.
 
@@ -65,6 +69,8 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 • 一键开关——点工具栏图标或按 ⌥A（Windows / Linux 上是 Alt+A）。再按一次，页面恢复原样。
 
+• YouTube 字幕——在 YouTube 视频页只翻字幕，译文显示在播放器里的原文字幕下面，全屏也有。人工字幕先拼回整句再翻；自动生成的字幕由你的模型在同一次请求里加标点、断句、翻译。视频标题、频道名和前几句一起发过去，人名和术语前后一致。作者已经传了你要的语言的字幕，就直接显示，不调模型。
+
 • 先翻你在看的——屏幕上的段落先翻、并行发出，每段写完立刻显示；往下滚再继续。无限滚动、单页应用后来加载的内容也会补翻。
 
 • 保留格式——链接、加粗、斜体在译文里保留，行内代码和按键原样复制。代码、导航、表单控件和已经是目标语言的段落自动跳过。
@@ -83,12 +89,12 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 ### Single purpose
 
-Translates the web page the user is reading, on request, with an LLM service the user configures, and shows each translation under its original paragraph.
+Translates the web page the user is reading, on request, with an LLM service the user configures, and shows each translation under its original paragraph; on a YouTube video page it translates the video's subtitles instead and shows them under the original subtitle line.
 
 ### Permission justifications
 
 - **activeTab**: gives access to the current tab only when the user clicks the toolbar icon or presses the shortcut, so the extension needs no access to all websites.
-- **scripting**: injects the translation script and its styles into that tab at that moment; nothing is injected into pages the user has not turned translation on for.
+- **scripting**: injects the translation script and its styles into that tab at that moment; nothing is injected into pages the user has not turned translation on for. On a YouTube video page it also injects a small script into the page's own context to read the player's subtitle tracks and the current video's id, title and channel, and to turn YouTube's own captions off while the translated ones are shown.
 - **storage**: saves the user's settings: the chosen service, its API key, model, reasoning level, address (custom service only), and the target language.
 - **Optional host permissions `https://*/*`, `http://*/*`**: the translation service is any OpenAI-compatible address the user enters, including a local Ollama on `http://localhost`, so its host cannot be listed in advance. They are optional: at run time the extension requests access only to the one origin of the service the user picked, and uses it only to send translation and model-list requests there. Page access comes from activeTab, not from these.
 
@@ -100,7 +106,7 @@ No. All JavaScript is in the package; the extension loads no external scripts an
 
 Declare:
 
-- **Website content** — the text of the paragraphs being translated, sent to the translation service the user configured, only after the user turns translation on for that tab.
+- **Website content** — the text of the paragraphs being translated, sent to the translation service the user configured, only after the user turns translation on for that tab. On a YouTube video page, the video's subtitles with its title and channel name instead.
 - **Authentication information** — the user's API key for that service, stored in `chrome.storage.local` and sent only to that service in the request header.
 
 Certify all three:
@@ -119,4 +125,4 @@ Certify all three:
 
 ## Test instructions (if the dashboard asks)
 
-The extension needs an API key for an OpenAI-compatible service. Open the settings page, pick OpenRouter, paste a key, allow access to openrouter.ai when Chrome asks, press Test, then open any English article and click the toolbar icon. No account with the developer exists.
+The extension needs an API key for an OpenAI-compatible service. Open the settings page, pick OpenRouter, paste a key, allow access to openrouter.ai when Chrome asks, press Test, then open any English article and click the toolbar icon. For subtitles, open an English YouTube video that has subtitles (for example https://www.youtube.com/watch?v=UF8uR6Z6KLc) and click the toolbar icon. No account with the developer exists.
