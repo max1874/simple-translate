@@ -117,10 +117,14 @@
 
   async function prepare(info) {
     const target = languageKey(config.targetLang);
-    const recognized = info.tracks.find((t) => t.asr);
+    // A dubbed video has speech recognition of every dub, and the list is
+    // sorted by language code, so Arabic came first: the spoken language is
+    // the original audio's when the video says, else the one speech
+    // recognition ran on.
+    const recognized = info.tracks.find((t) => t.asr && (!info.audio || languageKey(t.lang) === languageKey(info.audio)));
     const uploaded = info.tracks.filter((t) => !t.asr);
-    // The spoken language is the one speech recognition ran on.
-    const source = uploaded.find((t) => recognized && languageKey(t.lang) === languageKey(recognized.lang)) ?? recognized ?? uploaded[0];
+    const spoken = info.audio ?? recognized?.lang;
+    const source = uploaded.find((t) => spoken && languageKey(t.lang) === languageKey(spoken)) ?? recognized ?? uploaded[0];
     if (!source) return fail(chrome.i18n.getMessage('noSubtitles'));
     if (languageKey(source.lang) === target) return fail(chrome.i18n.getMessage('subtitlesInTarget'));
     const events = await captions(info.id, source);
@@ -194,7 +198,8 @@
 
   function cuesOf(events) {
     return events.flatMap((e) => {
-      const text = e.segs.map((s) => s.utf8).join('').replace(/\s+/g, ' ').trim();
+      // Zero-width spaces pad some channels' lines (MrBeast's).
+      const text = e.segs.map((s) => s.utf8).join('').replace(/[\u200b-\u200d\ufeff]/g, '').replace(/\s+/g, ' ').trim();
       return text ? [{ start: e.tStartMs, end: e.tStartMs + (e.dDurationMs ?? 0), text }] : [];
     });
   }
@@ -361,6 +366,8 @@
     const lines = [];
     for (const line of input.sort((a, b) => a.start - b.start)) {
       const prev = lines.at(-1);
+      // Some channels write every line twice, for an outline.
+      if (prev?.start === line.start && prev.text === line.text) continue;
       if (prev?.start === line.start) lines[lines.length - 1] = { start: prev.start, end: Math.max(prev.end, line.end), text: `${prev.text}\n${line.text}`, read: `${prev.read ?? prev.text}\n${line.read ?? line.text}` };
       else lines.push(line);
     }

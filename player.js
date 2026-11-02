@@ -27,12 +27,17 @@
     video() {
       const response = player()?.getPlayerResponse?.();
       if (!response?.videoDetails) return null;
-      const tracks = response.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+      const list = response.captions?.playerCaptionsTracklistRenderer;
+      // A dubbed video lists its audio tracks ("en-US.4"); the default one is
+      // the original, even while the player plays a dub in the viewer's
+      // language (MrBeast's, in Chinese, 2026-11-02).
+      const original = list?.audioTracks?.[list.defaultAudioTrackIndex ?? 0]?.audioTrackId;
       return {
         id: response.videoDetails.videoId,
         title: response.videoDetails.title,
         channel: response.videoDetails.author,
-        tracks: tracks.map((t) => ({ url: t.baseUrl, lang: t.languageCode, asr: t.kind === 'asr' })),
+        audio: original?.replace(/\.\d+$/, '') ?? null,
+        tracks: (list?.captionTracks ?? []).map((t) => ({ url: t.baseUrl, lang: t.languageCode, asr: t.kind === 'asr' })),
       };
     },
     captionUrl: (id) => requested.get(id) ?? null,
