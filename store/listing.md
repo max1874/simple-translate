@@ -123,6 +123,8 @@ Certify all three:
 - **Regions**: all
 - **Pricing**: free
 
-## Test instructions (if the dashboard asks)
+## Test instructions
 
-The extension needs an API key for an OpenAI-compatible service. Open the settings page, pick OpenRouter, paste a key, allow access to openrouter.ai when Chrome asks, press Test, then open any English article and click the toolbar icon. For subtitles, open an English YouTube video that has subtitles (for example https://www.youtube.com/watch?v=UF8uR6Z6KLc) and click the toolbar icon. No account with the developer exists.
+The dashboard's "Test instructions" page, "其他说明" field, at most 500 characters:
+
+Needs an API key for an OpenAI-compatible LLM service; no account with the developer. Open the settings page (click the toolbar icon once), pick OpenRouter, paste a key, allow access to openrouter.ai when Chrome asks, press Test. Then on an English article (e.g. en.wikipedia.org) click the icon or press Alt+A: a translation appears under each paragraph. On a YouTube video with English subtitles (e.g. youtube.com/watch?v=UF8uR6Z6KLc) the same click translates the subtitles. Press again to stop.
