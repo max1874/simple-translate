@@ -631,7 +631,8 @@
         return el;
       };
       const icon = svg('svg', { viewBox: '0 0 24 24', width: 24, height: 24, 'aria-hidden': 'true' });
-      icon.append(svg('rect', { x: 2, y: 4, width: 20, height: 16, rx: 2.5 }), svg('path', { d: 'M8.5 11h7M6.5 15h11' }));
+      // The extension icon's three bars; the last is the translated line.
+      icon.append(...['M4.5 5.5h15', 'M4.5 12h10', 'M4.5 18.5h12'].map((d) => svg('path', { d })));
       button.append(icon);
       button.addEventListener('click', () => {
         if (on) {

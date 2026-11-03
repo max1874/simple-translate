@@ -126,17 +126,18 @@
   margin: auto;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-linecap: round;
 }
 
-/* On, it is filled like YouTube's own captions button (2026-11-03). */
-.simple-translate-subtitles-button[aria-pressed="true"] rect {
-  fill: currentColor;
+.simple-translate-subtitles-button path + path {
+  opacity: 0.55;
 }
 
-.simple-translate-subtitles-button[aria-pressed="true"] path {
-  stroke: #000;
+/* On, the translated line takes the icon's brand color, as in icons/icon.svg. */
+.simple-translate-subtitles-button[aria-pressed="true"] path:last-child {
+  opacity: 1;
+  stroke: #f2b544;
 }
 
 .simple-translate-subtitles-button[data-state="loading"] svg,
