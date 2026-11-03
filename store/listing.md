@@ -49,7 +49,7 @@ Plain Translate translates the page you are reading with your own LLM and puts e
 
 • One key to toggle — click the toolbar icon or press Alt+A (⌥A on macOS). Press again and the page is back to how it was.
 
-• YouTube subtitles — on a YouTube video only the subtitles are translated, shown under the original line inside the player, full screen too. Uploaded subtitles are joined into whole sentences before translating; automatic captions, and subtitles written without punctuation as Chinese ones usually are, are punctuated and split into sentences by your model in the same request. The video's title, channel and the previous lines go along, so names and terms stay consistent. When the uploader already provides subtitles in your language, those are shown and no model is called.
+• YouTube bilingual subtitles — turn them on once in settings and a button appears in YouTube's player, next to CC. Translated subtitles show under the original line inside the player, full screen too, in the caption style you set on YouTube, and stay on from video to video until you turn the button off. Uploaded subtitles are joined into whole sentences before translating; automatic captions, and subtitles written without punctuation as Chinese ones usually are, are punctuated and split into sentences by your model in the same request. The video's title, channel and the previous lines go along, so names and terms stay consistent. When the uploader already provides subtitles in your language, those are shown and no model is called.
 
 • What you are reading comes first — paragraphs on screen are translated first, in parallel, and each appears as soon as it is written. The rest follow as you scroll; content loaded later by infinite scroll or single-page apps is translated too.
 
@@ -57,7 +57,7 @@ Plain Translate translates the page you are reading with your own LLM and puts e
 
 • Your model, your key — presets for OpenRouter, OpenAI, DeepSeek and a local Ollama, or any OpenAI-compatible address. Type a model name or search the service's model list. Keys are saved per service.
 
-• Nothing runs until you click — no script on every page and no access to all websites: the extension is injected into the current tab when you click, and asks only for access to the service address you picked.
+• Nothing runs until you click — no script on every page and no access to all websites: the extension is injected into the current tab when you click, and asks only for access to the service address you picked, plus youtube.com if you turn YouTube subtitles on.
 
 • No server, no analytics — page text goes only to the service you chose, under your own account and its standard rates. The developer receives nothing.
 
@@ -71,7 +71,7 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 • 一键开关——点工具栏图标或按 ⌥A（Windows / Linux 上是 Alt+A）。再按一次，页面恢复原样。
 
-• YouTube 字幕——在 YouTube 视频页只翻字幕，译文显示在播放器里的原文字幕下面，全屏也有。人工字幕先拼回整句再翻；自动生成的字幕，以及中文这类不带标点的字幕，由你的模型在同一次请求里加标点、断句、翻译。视频标题、频道名和前几句一起发过去，人名和术语前后一致。作者已经传了你要的语言的字幕，就直接显示，不调模型。
+• YouTube 双语字幕——在设置里打开一次，YouTube 播放器里 CC 旁边就多一个按钮。译文显示在播放器里的原文字幕下面，全屏也有，样式跟随你在 YouTube 设置的字幕样式；换视频保持打开，直到你关掉按钮。人工字幕先拼回整句再翻；自动生成的字幕，以及中文这类不带标点的字幕，由你的模型在同一次请求里加标点、断句、翻译。视频标题、频道名和前几句一起发过去，人名和术语前后一致。作者已经传了你要的语言的字幕，就直接显示，不调模型。
 
 • 先翻你在看的——屏幕上的段落先翻、并行发出，每段写完立刻显示；往下滚再继续。无限滚动、单页应用后来加载的内容也会补翻。
 
@@ -79,7 +79,7 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 • 用你自己的模型和 Key——内置 OpenRouter、OpenAI、DeepSeek、本地 Ollama，也可以填任何兼容 OpenAI 接口的地址。模型可以直接输入，也可以从服务商的模型列表里搜索。每个服务的 Key 分开保存。
 
-• 你不点，它就不动——不在每个网页常驻脚本，不要「读取所有网站」的权限：只在你点击时注入当前标签页，只申请访问你选的那个服务地址。
+• 你不点，它就不动——不在每个网页常驻脚本，不要「读取所有网站」的权限：只在你点击时注入当前标签页，只申请访问你选的那个服务地址；打开 YouTube 字幕时再申请 youtube.com。
 
 • 没有服务器，没有统计——网页文字只发给你选的服务，用你自己的账号、按服务商的标准价格计费。开发者收不到任何数据。
 
@@ -91,14 +91,14 @@ Privacy policy: https://max1874.com/simple-translate/privacy
 
 ### Single purpose
 
-Translates the web page the user is reading, on request, with an LLM service the user configures, and shows each translation under its original paragraph; on a YouTube video page it translates the video's subtitles instead and shows them under the original subtitle line.
+Translates the web page the user is reading, on request, with an LLM service the user configures, and shows each translation under its original paragraph; on YouTube, when the user turns bilingual subtitles on, it translates the video's subtitles and shows them under the original subtitle line.
 
 ### Permission justifications
 
 - **activeTab**: gives access to the current tab only when the user clicks the toolbar icon or presses the shortcut, so the extension needs no access to all websites.
-- **scripting**: injects the translation script and its styles into that tab at that moment; nothing is injected into pages the user has not turned translation on for. On a YouTube video page it also injects a small script into the page's own context to read the player's subtitle tracks and the current video's id, title and channel, and to turn YouTube's own captions off while the translated ones are shown.
+- **scripting**: injects the translation script and its styles into that tab at that moment; nothing is injected into pages the user has not turned translation on for. Once the user allows youtube.com from the settings switch, it registers the subtitles button's scripts on youtube.com pages, including a small script in the page's own context that reads the player's subtitle tracks, caption style settings and the current video's id, title and channel, and turns YouTube's own captions off while the translated ones are shown. Turning the switch off removes the access and the scripts.
 - **storage**: saves the user's settings: the chosen service, its API key, model, reasoning level, address (custom service only), and the target language.
-- **Optional host permissions `https://*/*`, `http://*/*`**: the translation service is any OpenAI-compatible address the user enters, including a local Ollama on `http://localhost`, so its host cannot be listed in advance. They are optional: at run time the extension requests access only to the one origin of the service the user picked, and uses it only to send translation and model-list requests there. Page access comes from activeTab, not from these.
+- **Optional host permissions `https://*/*`, `http://*/*`**: the translation service is any OpenAI-compatible address the user enters, including a local Ollama on `http://localhost`, so its host cannot be listed in advance. They are optional: at run time the extension requests access only to the one origin of the service the user picked, and uses it only to send translation and model-list requests there. The only other origin requested is `https://www.youtube.com/*`, and only when the user turns on "YouTube bilingual subtitles" in settings; it lets the subtitles button run in YouTube's player. Other page access comes from activeTab, not from these.
 
 ### Remote code
 
@@ -129,4 +129,4 @@ Certify all three:
 
 The dashboard's "Test instructions" page, "其他说明" field, at most 500 characters:
 
-Needs an API key for an OpenAI-compatible LLM service; no account with the developer. Open the settings page (click the toolbar icon once), pick OpenRouter, paste a key, allow access to openrouter.ai when Chrome asks, press Test. Then on an English article (e.g. en.wikipedia.org) click the icon or press Alt+A: a translation appears under each paragraph. On a YouTube video with English subtitles (e.g. youtube.com/watch?v=UF8uR6Z6KLc) the same click translates the subtitles. Press again to stop.
+Needs an API key for an OpenAI-compatible LLM service; no account with the developer. Open settings (click the toolbar icon once), pick OpenRouter, paste a key, allow openrouter.ai when Chrome asks, press Test. On an English article (en.wikipedia.org) click the icon or press Alt+A: translations appear under paragraphs. YouTube: turn on "YouTube bilingual subtitles" in settings, allow youtube.com, open youtube.com/watch?v=UF8uR6Z6KLc and click the three-bar button left of CC.
