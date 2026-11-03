@@ -40,6 +40,7 @@
         tracks: (list?.captionTracks ?? []).map((t) => ({ url: t.baseUrl, lang: t.languageCode, asr: t.kind === 'asr' })),
       };
     },
+    captionStyle: () => player()?.getSubtitlesUserSettings?.() ?? null,
     captionUrl: (id) => requested.get(id) ?? null,
     // Turning captions on makes the player request them. Ones already on are
     // turned off and on again: their request may predate the observer, and

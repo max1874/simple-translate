@@ -1,9 +1,12 @@
-// Injected on demand by background.js on a YouTube video page, after player.js.
+// Registered by background.js on YouTube after the user grants access.
 // Shows each subtitle with its translation over the video, translating ahead
 // of the playhead.
 
 (() => {
-  globalThis.__simpleTranslateSubtitles?.stop();
+  const previous = globalThis.__simpleTranslateSubtitles;
+  if (previous?.destroy) previous.destroy();
+  else previous?.stop();
+  document.querySelectorAll('.simple-translate-subtitles-button, .simple-translate-subtitles').forEach((el) => el.remove());
 
   const ROOT = 'simple-translate-subtitles';
   // Translated this far ahead of the playhead: what is watched is paid for,
@@ -51,8 +54,33 @@
   // Letters count as Chinese characters too: a run of them stops at one.
   const TOKEN = new RegExp(`[${CJK_SCRIPTS}]|(?:(?![${CJK_SCRIPTS}])[\\p{L}\\p{N}])+`, 'gu');
   const WORD = new RegExp(`[${CJK_SCRIPTS}]|[^\\s${CJK_SCRIPTS}]+`, 'gu');
+  // YouTube's caption settings by number, as its own captions render them
+  // (read 2026-11-03). Family 4, the default, is the stylesheet's.
+  const CAPTION_FONTS = {
+    1: '"Courier New", Courier, "Nimbus Mono L", "Cutive Mono", monospace',
+    2: '"Times New Roman", Times, Georgia, Cambria, "PT Serif Caption", serif',
+    3: '"Deja Vu Sans Mono", "Lucida Console", Monaco, Consolas, "PT Mono", monospace',
+    5: '"Comic Sans MS", Impact, Handlee, fantasy',
+    6: '"Monotype Corsiva", "URW Chancery L", "Apple Chancery", "Dancing Script", cursive',
+    7: 'Arial, Helvetica, Verdana, "Marcellus SC", sans-serif',
+  };
+  const CAPTION_EDGES = {
+    0: 'none',
+    1: '0.03em 0.03em #222, 0.05em 0.05em #222, 0.07em 0.07em #222, 0.09em 0.09em #222',
+    2: '0.03em 0.03em #ccc, -0.03em -0.03em #222',
+    3: '0 0 0.06em #222, 0 0 0.06em #222, 0 0 0.06em #222, 0 0 0.06em #222',
+    4: '0.06em 0.06em 0.09em #222, 0.06em 0.06em 0.12em #222, 0.06em 0.06em 0.16em #222',
+  };
 
   let on = false;
+  let activation = 0;
+  let currentVideo;
+  let notify = false;
+  let button = null;
+  let status = 'off';
+  let reason = '';
+  let styleValue = '';
+  let styleRead = 0;
   let generation = 0;
   let config = null;
   let state = null;
@@ -99,6 +127,7 @@
     state = null;
     loading = id;
     if (!id) return;
+    setStatus('loading');
     const gen = generation;
     // After YouTube changes the address the player takes a moment to switch.
     let info = null;
@@ -109,9 +138,14 @@
     const loaded = info?.id === id ? memory.get(id) ?? await prepare(info) : null;
     if (gen !== generation) return;
     loading = null;
-    if (videoId() !== id || !loaded) return;
+    if (videoId() !== id) return;
+    if (!loaded) {
+      if (status === 'loading') fail(chrome.i18n.getMessage('subtitlesUnavailable'));
+      return;
+    }
     memory.set(id, loaded);
     state = loaded;
+    readStyle();
     pump();
   }
 
@@ -520,13 +554,18 @@
     root.append(box);
     player.append(root);
     shown = [];
+    styleValue = '';
+    readStyle();
   }
 
   function render() {
+    if (!chrome.runtime?.id) return destroy();
     frame = requestAnimationFrame(render);
     const player = document.getElementById('movie_player');
     if (!player) return;
     if (root?.parentNode !== player) mount(player);
+    if (performance.now() - styleRead >= 1000) readStyle();
+    if (status === 'loading' && state?.lines.some((line) => line.text)) setStatus('on');
     // YouTube's own captions give way only to subtitles shown here.
     player.classList.toggle(`${ROOT}-on`, Boolean(state));
     const t = (video()?.currentTime ?? 0) * 1000;
@@ -549,6 +588,9 @@
   }
 
   function toast(message) {
+    if (!on) return;
+    setStatus('unavailable', message);
+    if (!notify) return;
     if (document.querySelector('.simple-translate-toast')) return;
     const el = document.createElement('div');
     el.className = 'simple-translate simple-translate-toast';
@@ -557,21 +599,119 @@
     setTimeout(() => el.remove(), 8000);
   }
 
-  function start(pageConfig) {
-    const key = `${pageConfig.targetLang}\n${pageConfig.model}`;
-    if (key !== memoryKey) {
-      memory.clear();
-      memoryKey = key;
+  function setStatus(value, message = '') {
+    status = value;
+    reason = message;
+    if (!button || !chrome.runtime?.id) return;
+    const label = chrome.i18n.getMessage('bilingualSubtitles');
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-busy', String(value === 'loading'));
+    button.dataset.state = value;
+    button.title = button.ariaLabel = message ? `${label}: ${message}` : label;
+  }
+
+  function mountButton() {
+    if (!chrome.runtime?.id) return destroy();
+    // Next to YouTube's own captions button, which sits in a nested group of
+    // the right-hand controls (2026-11-03).
+    const cc = videoId() && document.querySelector('#movie_player .ytp-subtitles-button');
+    if (!cc) {
+      button?.remove();
+      return;
     }
-    config = pageConfig;
+    if (button?.nextSibling === cc) return;
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ytp-button simple-translate-subtitles-button';
+      // Built node by node: YouTube enforces Trusted Types on innerHTML.
+      const svg = (tag, attributes) => {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const [name, value] of Object.entries(attributes)) el.setAttribute(name, value);
+        return el;
+      };
+      const icon = svg('svg', { viewBox: '0 0 24 24', width: 24, height: 24, 'aria-hidden': 'true' });
+      icon.append(svg('rect', { x: 2, y: 4, width: 20, height: 16, rx: 2.5 }), svg('path', { d: 'M8.5 11h7M6.5 15h11' }));
+      button.append(icon);
+      button.addEventListener('click', () => {
+        if (on) {
+          chrome.storage.local.set({ subtitles: false });
+          stop();
+        } else start(true);
+      });
+    }
+    cc.before(button);
+    setStatus(status, reason);
+  }
+
+  async function navigate() {
+    mountButton();
+    const id = videoId();
+    if (id === currentVideo) return;
+    currentVideo = id;
+    stop();
+    const turn = activation;
+    try {
+      const { subtitles } = await chrome.storage.local.get('subtitles');
+      if (turn === activation && id && subtitles === true) await start();
+    } catch (error) {
+      if (chrome.runtime?.id) console.warn('Plain Translate cannot load subtitles:', error.message);
+    }
+  }
+
+  async function start(clicked = false) {
+    stop();
+    const turn = activation;
     on = true;
-    // Media events do not bubble; captured on the document they follow
-    // whichever video element the player uses.
-    document.addEventListener('timeupdate', pump, true);
-    document.addEventListener('seeked', pump, true);
-    document.addEventListener('yt-navigate-finish', load);
-    frame = requestAnimationFrame(render);
-    load();
+    notify = clicked;
+    setStatus('loading');
+    try {
+      const pageConfig = await chrome.runtime.sendMessage({ type: 'pageConfig' });
+      if (turn !== activation) return;
+      if (!pageConfig) {
+        stop();
+        if (clicked) chrome.runtime.sendMessage({ type: 'openOptions' });
+        return;
+      }
+      const key = `${pageConfig.targetLang}\n${pageConfig.model}`;
+      if (key !== memoryKey) {
+        memory.clear();
+        memoryKey = key;
+      }
+      config = pageConfig;
+      if (clicked) await chrome.storage.local.set({ subtitles: true });
+      if (turn !== activation) return;
+      // Captured media events follow whichever video element YouTube uses.
+      document.addEventListener('timeupdate', pump, true);
+      document.addEventListener('seeked', pump, true);
+      frame = requestAnimationFrame(render);
+      await load();
+    } catch (error) {
+      if (turn === activation) fail(`${chrome.i18n.getMessage('translateFailed')}: ${error.message}`);
+    }
+  }
+
+  function readStyle() {
+    styleRead = performance.now();
+    const s = ask('captionStyle');
+    const value = JSON.stringify(s);
+    if (!root || !s || value === styleValue) return;
+    styleValue = value;
+    const color = (value, opacity) => (value && opacity >= 0 ? `color-mix(in srgb, ${value} ${opacity * 100}%, transparent)` : undefined);
+    const props = {
+      color: color(s.color, s.textOpacity),
+      background: color(s.background, s.backgroundOpacity),
+      window: color(s.windowColor, s.windowOpacity),
+      scale: Math.max(0.5, 1 + 0.25 * s.fontSizeIncrement),
+      family: CAPTION_FONTS[s.fontFamily],
+      variant: s.fontFamily === 7 ? 'small-caps' : 'normal',
+      shadow: CAPTION_EDGES[s.charEdgeStyle],
+    };
+    // What YouTube does not say keeps the stylesheet's default.
+    for (const [name, value] of Object.entries(props)) {
+      if (value === undefined || Number.isNaN(value)) root.style.removeProperty(`--st-caption-${name}`);
+      else root.style.setProperty(`--st-caption-${name}`, value);
+    }
   }
 
   // Drops every request in flight and every load under way. Unfinished and
@@ -595,11 +735,12 @@
   }
 
   function stop() {
+    activation++;
     on = false;
+    notify = false;
     cancel();
     document.removeEventListener('timeupdate', pump, true);
     document.removeEventListener('seeked', pump, true);
-    document.removeEventListener('yt-navigate-finish', load);
     cancelAnimationFrame(frame);
     document.getElementById('movie_player')?.classList.remove(`${ROOT}-on`);
     root?.remove();
@@ -607,12 +748,26 @@
     state = null;
     if (turnedCaptionsOn) ask('captionsOff');
     turnedCaptionsOn = false;
+    setStatus('off');
   }
+
+  function destroy() {
+    stop();
+    controlsChanged.disconnect();
+    document.removeEventListener('yt-navigate-finish', navigate);
+    button?.remove();
+  }
+
+  const controlsChanged = new MutationObserver(mountButton);
+  controlsChanged.observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('yt-navigate-finish', navigate);
 
   globalThis.__simpleTranslateSubtitles = {
     alive: () => Boolean(chrome.runtime?.id),
     active: () => on,
     start,
     stop,
+    destroy,
   };
+  navigate();
 })();

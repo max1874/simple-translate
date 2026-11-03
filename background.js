@@ -3,7 +3,60 @@ importScripts('common.js');
 const REQUEST_TIMEOUT_MS = 90_000;
 
 chrome.action.onClicked.addListener(toggleTab);
-chrome.runtime.onInstalled.addListener(migrateConfig);
+chrome.runtime.onInstalled.addListener(async () => {
+  await migrateConfig();
+  await syncYouTube();
+  await injectYouTube();
+});
+
+const YOUTUBE = 'https://www.youtube.com/*';
+const YOUTUBE_SCRIPTS = [
+  { id: 'youtube-player', matches: [YOUTUBE], js: ['player.js'], world: 'MAIN', runAt: 'document_start' },
+  { id: 'youtube-subtitles', matches: [YOUTUBE], js: ['common.js', 'subtitles.js'], css: ['content.css'], runAt: 'document_idle' },
+];
+let youtubeSync = Promise.resolve();
+
+function syncYouTube() {
+  // Permission events and installation can arrive together.
+  youtubeSync = youtubeSync.catch(() => {}).then(async () => {
+    const allowed = await chrome.permissions.contains({ origins: [YOUTUBE] });
+    const registered = new Set((await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id));
+    const missing = YOUTUBE_SCRIPTS.filter((s) => !registered.has(s.id));
+    const remove = YOUTUBE_SCRIPTS.filter((s) => registered.has(s.id)).map((s) => s.id);
+    if (allowed && missing.length) await chrome.scripting.registerContentScripts(missing);
+    if (!allowed && remove.length) await chrome.scripting.unregisterContentScripts({ ids: remove });
+  });
+  return youtubeSync;
+}
+
+async function injectYouTube() {
+  if (!await chrome.permissions.contains({ origins: [YOUTUBE] })) return;
+  const tabs = await chrome.tabs.query({ url: YOUTUBE });
+  await Promise.all(tabs.map(async ({ id }) => {
+    try {
+      const target = { tabId: id };
+      await chrome.scripting.executeScript({ target, files: ['player.js'], world: 'MAIN' });
+      await chrome.scripting.insertCSS({ target, files: ['content.css'] });
+      await chrome.scripting.executeScript({ target, files: ['common.js', 'subtitles.js'] });
+    } catch (error) {
+      console.warn('Plain Translate cannot load YouTube subtitles:', error.message);
+    }
+  }));
+}
+
+syncYouTube();
+chrome.permissions.onAdded.addListener(async ({ origins }) => {
+  await syncYouTube();
+  if (origins?.includes(YOUTUBE)) await injectYouTube();
+});
+chrome.permissions.onRemoved.addListener(syncYouTube);
+
+async function pageConfig() {
+  const config = await loadConfig();
+  if (!isConfigured(config)) return null;
+  const service = serviceConfig(config);
+  return { targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') };
+}
 
 // The tooltip names the shortcut actually assigned, which may differ from the
 // suggested one when another extension already holds it.
@@ -17,40 +70,34 @@ updateTitle();
 chrome.commands.onChanged?.addListener(updateTitle);
 
 async function toggleTab(tab) {
-  const config = await loadConfig();
-  if (!isConfigured(config)) {
+  const config = await pageConfig();
+  if (!config) {
     chrome.runtime.openOptionsPage();
     return;
   }
-  const service = serviceConfig(config);
   const target = { tabId: tab.id };
   try {
-    // A click turns off whatever is on, which on YouTube may be the other
-    // mode: the site moves between pages without reloading. Otherwise it
-    // starts the page's mode; on a YouTube video only the subtitles.
     const [{ result: page }] = await chrome.scripting.executeScript({
       target,
       func: () => {
-        const on = [globalThis.__simpleTranslate, globalThis.__simpleTranslateSubtitles].filter((m) => m?.alive() && m.active());
-        on.forEach((m) => m.stop());
-        const video = /^(www\.)?youtube\.com$/.test(location.hostname) && location.pathname === '/watch';
-        const name = video ? '__simpleTranslateSubtitles' : '__simpleTranslate';
-        return { stopped: on.length > 0, video, name, loaded: Boolean(globalThis[name]?.alive()) };
+        const page = globalThis.__simpleTranslate;
+        const loaded = Boolean(page?.alive());
+        const stopped = loaded && page.active();
+        if (stopped) page.stop();
+        return { stopped, loaded };
       },
     });
     if (page.stopped) return;
     if (!page.loaded) {
       await chrome.scripting.insertCSS({ target, files: ['content.css'] });
-      // The player's object lives in the page's own world.
-      if (page.video) await chrome.scripting.executeScript({ target, files: ['player.js'], world: 'MAIN' });
-      await chrome.scripting.executeScript({ target, files: ['common.js', page.video ? 'subtitles.js' : 'content.js'] });
+      await chrome.scripting.executeScript({ target, files: ['common.js', 'content.js'] });
     }
     // Only what the page needs; the API key stays out of the page's process.
     // `model` keys the page's cache, so it names everything that changes output.
     await chrome.scripting.executeScript({
       target,
-      func: (name, pageConfig) => globalThis[name].start(pageConfig),
-      args: [page.name, { targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') }],
+      func: (config) => globalThis.__simpleTranslate.start(config),
+      args: [config],
     });
   } catch (error) {
     // chrome:// pages, the Web Store and similar pages refuse injection.
@@ -93,8 +140,17 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-// The options page's test button.
+// Content scripts receive only public configuration; keys stay here.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'pageConfig') {
+    pageConfig().then(sendResponse, () => sendResponse(null));
+    return true;
+  }
+  if (message?.type === 'openOptions') {
+    chrome.runtime.openOptionsPage();
+    return false;
+  }
+  // The options page's test button.
   if (message?.type !== 'test') return false;
   const started = performance.now();
   let firstWord = null;

@@ -171,5 +171,14 @@
   },
   "subtitlesUnavailable": {
     "message": "YouTube 没有返回这个视频的字幕。"
+  },
+  "bilingualSubtitles": {
+    "message": "双语字幕"
+  },
+  "youtubeSubtitles": {
+    "message": "YouTube 双语字幕"
+  },
+  "youtubeSubtitlesNote": {
+    "message": "开启时，Chrome 会询问是否允许访问 youtube.com，以便在播放器里显示双语字幕按钮。只有打开播放器里的按钮后，才会向你选的翻译服务发送内容。"
   }
 }

@@ -324,3 +324,24 @@ $('change-shortcut').addEventListener('click', () => {
 
 // The shortcut may be changed in another tab.
 addEventListener('focus', showShortcut);
+
+const YOUTUBE = { origins: ['https://www.youtube.com/*'] };
+
+async function showYouTube() {
+  $('youtube-subtitles').checked = await chrome.permissions.contains(YOUTUBE);
+}
+
+$('youtube-subtitles').addEventListener('change', (event) => {
+  const field = event.target;
+  const enable = field.checked;
+  const access = enable ? chrome.permissions.request(YOUTUBE) : chrome.permissions.remove(YOUTUBE);
+  field.disabled = true;
+  $('youtube-status').textContent = '';
+  access.catch(() => false).then(async (granted) => {
+    if (enable && !granted) $('youtube-status').textContent = t('permissionDenied', 'youtube.com');
+    await showYouTube();
+    field.disabled = false;
+  });
+});
+showYouTube();
+addEventListener('focus', showYouTube);

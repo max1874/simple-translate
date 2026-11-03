@@ -549,3 +549,46 @@ kbd {
 [hidden] {
   display: none !important;
 }
+
+.youtube-group {
+  margin-top: 24px;
+}
+
+.switch {
+  appearance: none;
+  flex: none;
+  width: 32px;
+  height: 20px;
+  margin: 0;
+  padding: 2px;
+  border: none;
+  border-radius: 10px;
+  background: var(--muted);
+  cursor: pointer;
+}
+
+.switch::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.switch:checked {
+  background: var(--blue);
+}
+
+.switch:checked::before {
+  transform: translateX(12px);
+}
+
+.switch:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}

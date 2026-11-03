@@ -26,7 +26,7 @@
     'VIDEO', 'AUDIO', 'IFRAME', 'OBJECT', 'EMBED', 'TEXTAREA', 'INPUT', 'SELECT', 'BUTTON',
   ]);
   // Blocks skipped together with everything inside them.
-  const SKIP_BLOCK = 'pre, nav, [role="navigation"], code, kbd, samp, [translate="no"], .notranslate, [aria-hidden="true"]';
+  const SKIP_BLOCK = '.html5-video-player, pre, nav, [role="navigation"], code, kbd, samp, [translate="no"], .notranslate, [aria-hidden="true"]';
   // Inline formatting carried into the translation. The model sees each as a
   // numbered tag: <x1>words</x1> around text it translates, <x2/> for an
   // element copied over as is (code, keys, inline images).

@@ -171,5 +171,14 @@
   },
   "subtitlesUnavailable": {
     "message": "YouTube did not return this video's subtitles."
+  },
+  "bilingualSubtitles": {
+    "message": "Bilingual subtitles"
+  },
+  "youtubeSubtitles": {
+    "message": "YouTube bilingual subtitles"
+  },
+  "youtubeSubtitlesNote": {
+    "message": "Turning this on asks Chrome for access to youtube.com so a bilingual subtitles button can appear in the player. Nothing is sent to your translation service until you turn on that button."
   }
 }
