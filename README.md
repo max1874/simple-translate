@@ -6,7 +6,7 @@
 
 <sub>动图录自 [max1874.com/simple-translate](https://max1874.com/simple-translate/)，那里可以亲手试。</sub>
 
-- **一键开关**：点工具栏上的简单翻译图标，或按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>）开始翻译网页（包括 YouTube 的标题、描述和评论）；再按一次，页面恢复原样，不影响字幕开关。
+- **一键开关**：按 <kbd>⌥A</kbd>（Windows/Linux 上是 <kbd>Alt</kbd>+<kbd>A</kbd>），或点工具栏上的简单翻译图标、再点「翻译此页」，开始翻译网页（包括 YouTube 的标题、描述和评论）；再按一次，页面恢复原样，不影响字幕开关。图标弹出的面板还显示正在用的服务、模型和 API Key；服务商拒绝了 key（HTTP 401）时，面板直接给出输入框，粘贴新 key 后点「翻译此页」就用新 key 重翻。
 - **只翻你在看的**：屏幕上的段落先翻，往下滚再继续；每段翻完立刻显示，不等整批。
 - **YouTube 字幕**：在设置的「翻译」页开启「YouTube 双语字幕」并允许访问 youtube.com 后，播放器的字幕按钮旁会出现独立的双语字幕按钮。点它打开或关闭，选择会跨视频、刷新和标签页保存；其他标签页在加载下一个视频时读取最新选择。译文显示在原字幕下面，全屏也在，颜色、背景、字体和大小跟随 YouTube 的字幕设置。作者上传的字幕常把一句话拆成几条，这里拼回整句再翻；自动生成的字幕没有标点，由模型断句、加标点再翻译，句子仍按每个词的时间显示。作者传了你要的语言的字幕，直接显示，不调用模型。
 - **用你自己的模型和 key**：OpenRouter、OpenAI、DeepSeek、Ollama，或任何兼容 OpenAI 接口的服务。
@@ -15,7 +15,7 @@
 
 ## 安装
 
-从 [Chrome 网上应用店](https://chromewebstore.google.com/detail/plain-translate/agbnnlocgcdpnkkbfooojejhnpcemiko)安装。第一次点工具栏上的简单翻译图标会打开设置页。
+从 [Chrome 网上应用店](https://chromewebstore.google.com/detail/plain-translate/agbnnlocgcdpnkkbfooojejhnpcemiko)安装。点工具栏上的简单翻译图标，在弹出的面板里点「设置翻译服务」打开设置页。
 
 想用这个仓库里最新的代码：clone 下来，打开 `chrome://extensions`，打开右上角的「开发者模式」，点「加载已解压的扩展程序」，选仓库文件夹。它和应用店版是两个扩展，设置不互通。
 
@@ -31,9 +31,9 @@
 
 ## 使用
 
-打开任意网页，点工具栏图标或按快捷键，只开关网页翻译。YouTube 双语字幕由播放器里的独立按钮开关，两个开关互不影响。Chrome 只在安装扩展时、且这个组合键没被占用时才分配快捷键，被占用也不提示。设置页里快捷键显示「未设置」，多半是别的扩展占着 <kbd>⌥A</kbd>（沉浸式翻译默认就用它）：先在 `chrome://extensions/shortcuts` 里清掉那个扩展的 <kbd>⌥A</kbd>，再给简单翻译设上；设置页的「修改」直接打开这个页面。
+打开任意网页，按快捷键，或点工具栏图标再点「翻译此页」，只开关网页翻译。YouTube 双语字幕由播放器里的独立按钮开关，两个开关互不影响。Chrome 只在安装扩展时、且这个组合键没被占用时才分配快捷键，被占用也不提示；从 1.2 及更早版本升级上来的，<kbd>⌥A</kbd> 原先属于工具栏图标，升级后需要自己设一次，面板底部会出现「设置快捷键」。设置页里快捷键显示「未设置」，多半是别的扩展占着 <kbd>⌥A</kbd>（沉浸式翻译默认就用它）：先在 `chrome://extensions/shortcuts` 里清掉那个扩展的 <kbd>⌥A</kbd>，再给简单翻译设上；设置页的「修改」直接打开这个页面。
 
-`chrome://` 页面和 Chrome 网上应用店的页面不允许扩展运行，在那里点图标不会有反应。
+`chrome://` 页面和 Chrome 网上应用店的页面不允许扩展运行，在那里面板里的「翻译此页」不可用。
 
 ## 常见问题
 
@@ -53,7 +53,7 @@ Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文�
 
 ## 工作原理
 
-- 点击时，`background.js` 把 `content.js` 注入当前标签页（靠 `activeTab`，所以不需要所有网站的权限），翻译请求从后台发到 `{地址}/chat/completions`，流式接收。
+- 点「翻译此页」或按快捷键时，`background.js` 把 `content.js` 注入当前标签页（靠 `activeTab`，所以不需要所有网站的权限），翻译请求从后台发到 `{地址}/chat/completions`，流式接收。服务返回 401 时，后台把这个 key 记在 `chrome.storage.session`（只在内存里，网页读不到），面板据此把它标成被拒绝，直到换了 key 或请求再次成功。
 - `content.js` 按块级元素和 `<br>` 把页面切成段落，跳过代码、导航、表单控件和已经是目标语言的段落，在每段后面插入一个 `<span class="simple-translate">`。
 - 段落里的链接、加粗、斜体等格式以 `<x1>…</x1>` 编号标签发给模型，行内代码、按键和图片以 `<x2/>` 占位、原样复制；译文按这些标签重建，所以保留原文的样式。和原文完全相同的译文（人名、标题）不显示。
 - 段落以 JSON 对象（`{"1": "...", "2": "..."}`）分批发给模型，屏幕上的每批 4 段、其余每批 8 段，返回同样的 key。回复缺 key，或者看起来错位了（某段译文里出现了另一段的格式标签——同一批的标签连续编号；两个 key 译文相同；某个 key 里是另一段的原文；某段的「译文长度 ÷ 原文长度」和同批其他段差得太多），整批丢弃，改成逐段重翻。只有通过检查的译文才进缓存。
@@ -75,7 +75,7 @@ Chrome 自带翻译用谷歌翻译把原文替换掉；简单翻译保留原文�
 
 ## English
 
-Plain Translate (简单翻译) is an open-source, minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Click the toolbar icon or press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS) to translate the page, YouTube's titles and comments included; press again to restore it. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed.
+Plain Translate (简单翻译) is an open-source, minimal Chrome extension that translates the page you are reading with your own LLM and shows each translation below its paragraph. Press <kbd>Alt</kbd>+<kbd>A</kbd> (<kbd>⌥A</kbd> on macOS), or click the toolbar icon and **Translate this page**, to translate the page, YouTube's titles and comments included; press again to restore it. The icon's panel also shows the service and model in use and, when the service rejects the API key, takes a new one in place. Pick a service in the settings (OpenRouter, OpenAI, DeepSeek, Ollama, or any OpenAI-compatible endpoint), paste your key, and keep **Reasoning** off for speed.
 
 For YouTube, turn on **YouTube bilingual subtitles** in the settings: Chrome asks for access to youtube.com, and a **Bilingual subtitles** button appears next to the player's captions button. It shows each subtitle with its translation below, in YouTube's own caption style, and stays on across videos, reloads and tabs until you turn it off. Uploaded cues are joined into sentences, and the model punctuates and splits auto-generated captions and subtitles written without punctuation; an uploader's track in your language is shown without calling the model.
 

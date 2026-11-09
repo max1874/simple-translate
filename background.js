@@ -2,7 +2,10 @@ importScripts('common.js');
 
 const REQUEST_TIMEOUT_MS = 90_000;
 
-chrome.action.onClicked.addListener(toggleTab);
+// The toolbar icon opens popup.html; the shortcut translates directly.
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === 'toggle-page') toggleTab(tab);
+});
 chrome.runtime.onInstalled.addListener(async () => {
   await migrateConfig();
   await syncYouTube();
@@ -58,18 +61,9 @@ async function pageConfig() {
   return { targetLang: config.targetLang, model: [service.baseUrl, service.model, service.reasoning].join(' ') };
 }
 
-// The tooltip names the shortcut actually assigned, which may differ from the
-// suggested one when another extension already holds it.
-async function updateTitle() {
-  const command = (await chrome.commands.getAll()).find((c) => c.name === '_execute_action');
-  const title = chrome.i18n.getMessage('actionTitle');
-  chrome.action.setTitle({ title: command?.shortcut ? `${title} (${command.shortcut})` : title });
-}
-
-updateTitle();
-chrome.commands.onChanged?.addListener(updateTitle);
-
-async function toggleTab(tab) {
+// `restart` starts a page over instead of stopping it: one whose requests were
+// refused for a key that has since been replaced.
+async function toggleTab(tab, restart = false) {
   const config = await pageConfig();
   if (!config) {
     chrome.runtime.openOptionsPage();
@@ -87,7 +81,7 @@ async function toggleTab(tab) {
         return { stopped, loaded };
       },
     });
-    if (page.stopped) return;
+    if (page.stopped && !restart) return;
     if (!page.loaded) {
       await chrome.scripting.insertCSS({ target, files: ['content.css'] });
       await chrome.scripting.executeScript({ target, files: ['common.js', 'content.js'] });
@@ -149,6 +143,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'openOptions') {
     chrome.runtime.openOptionsPage();
     return false;
+  }
+  // The popup's button; it closes once the page has started or stopped.
+  if (message?.type === 'toggle') {
+    toggleTab(message.tab, message.restart).then(() => sendResponse());
+    return true;
   }
   // The options page's test button.
   if (message?.type !== 'test') return false;
@@ -438,10 +437,17 @@ async function chat(config, system, user, onContent, signal) {
     }),
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
+  // The popup marks the key as rejected until it is replaced or works again.
+  // Session storage stays in memory and out of content scripts.
+  if (response.status === 401) {
+    await chrome.storage.session.set({ rejectedKey: service.apiKey });
+    throw new Error(chrome.i18n.getMessage('keyRejected', [service.name || new URL(service.baseUrl).host]));
+  }
   if (!response.ok) {
     const body = (await response.text()).slice(0, 300);
     throw new Error(`HTTP ${response.status} ${body}`);
   }
+  chrome.storage.session.remove('rejectedKey');
   const content = await readContent(response, onContent);
   return withoutThinking(content).trim();
 }

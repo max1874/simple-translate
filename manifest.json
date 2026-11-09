@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "default_locale": "en",
   "icons": {
     "16": "icons/16.png",
@@ -11,15 +11,17 @@
     "128": "icons/128.png"
   },
   "action": {
-    "default_title": "__MSG_actionTitle__",
+    "default_title": "__MSG_extName__",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png"
     }
   },
   "commands": {
-    "_execute_action": {
-      "suggested_key": { "default": "Alt+A" }
+    "toggle-page": {
+      "suggested_key": { "default": "Alt+A" },
+      "description": "__MSG_actionTitle__"
     }
   },
   "background": { "service_worker": "background.js" },

@@ -37,18 +37,6 @@ loadConfig().then((loaded) => {
 
 const current = () => serviceConfig(config);
 
-function serviceIcon(id) {
-  const icon = SERVICE_ICONS[id];
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', icon.path);
-  path.setAttribute('fill', icon.color ?? 'currentColor');
-  if (!icon.color) path.setAttribute('fill-rule', 'evenodd');
-  svg.append(path);
-  return svg;
-}
 const displayName = (service) => service.name || t('custom');
 
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
@@ -313,7 +301,7 @@ $('remove-key').addEventListener('click', async () => {
 
 async function showShortcut() {
   const commands = await chrome.commands.getAll();
-  const shortcut = commands.find((c) => c.name === '_execute_action')?.shortcut;
+  const shortcut = commands.find((c) => c.name === 'toggle-page')?.shortcut;
   $('shortcut').textContent = shortcut || t('shortcutNone');
   $('shortcut-hint').hidden = Boolean(shortcut);
 }

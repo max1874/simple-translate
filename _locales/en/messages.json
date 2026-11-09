@@ -149,7 +149,7 @@
     "message": "Not set"
   },
   "shortcutHint": {
-    "message": "\"Not set\" usually means another extension already uses the key. You can also click the toolbar icon."
+    "message": "\"Not set\" usually means another extension already uses the key. You can also click the toolbar icon and translate from its panel."
   },
   "privacy": {
     "message": "Privacy"
@@ -180,5 +180,39 @@
   },
   "youtubeSubtitlesNote": {
     "message": "Turning this on asks Chrome for access to youtube.com so a bilingual subtitles button can appear in the player. Nothing is sent to your translation service until you turn on that button."
+  },
+  "showOriginal": {
+    "message": "Show original"
+  },
+  "setUpService": {
+    "message": "Set up a translation service"
+  },
+  "pageBlocked": {
+    "message": "Chrome doesn't let extensions run on this page."
+  },
+  "keyRejected": {
+    "message": "$P1$ rejected the API key (HTTP 401). Click the Plain Translate toolbar icon to change it.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyRejectedBy": {
+    "message": "Rejected by $P1$.",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyNone": {
+    "message": "Not set"
+  },
+  "allSettings": {
+    "message": "All settings"
+  },
+  "setShortcut": {
+    "message": "Set a shortcut"
   }
 }

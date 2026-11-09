@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="options.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="brand">
+    <img src="icons/128.png" alt="" width="20" height="20">
+    <span data-i18n="extName"></span>
+  </div>
+
+  <button type="button" id="toggle" class="button primary">
+    <span id="toggle-label"></span>
+    <kbd id="shortcut"></kbd>
+  </button>
+  <p class="note" id="page-note"></p>
+
+  <div class="group">
+    <div class="row">
+      <span class="logo" id="logo"></span>
+      <span class="name" id="service"></span>
+      <span class="value" id="model"></span>
+    </div>
+    <div class="row" id="key-row">
+      <div class="label">
+        <label for="api-key" data-i18n="apiKey"></label>
+        <span class="sub" id="key-status"></span>
+      </div>
+      <span class="value" id="key-saved"></span>
+      <button type="button" id="change-key" class="button" data-i18n="change"></button>
+      <input id="api-key" class="field" type="password" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+
+  <div class="links">
+    <button type="button" id="settings" class="link" data-i18n="allSettings"></button>
+    <button type="button" id="set-shortcut" class="link" data-i18n="setShortcut" hidden></button>
+  </div>
+  <script src="common.js"></script>
+  <script src="icons.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

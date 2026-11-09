@@ -149,7 +149,7 @@
     "message": "未设置"
   },
   "shortcutHint": {
-    "message": "显示「未设置」通常是这个组合键已被别的扩展占用。也可以直接点工具栏上的图标。"
+    "message": "显示「未设置」通常是这个组合键已被别的扩展占用。也可以点工具栏上的图标，在弹出的面板里翻译。"
   },
   "privacy": {
     "message": "隐私"
@@ -180,5 +180,39 @@
   },
   "youtubeSubtitlesNote": {
     "message": "开启时，Chrome 会询问是否允许访问 youtube.com，以便在播放器里显示双语字幕按钮。只有打开播放器里的按钮后，才会向你选的翻译服务发送内容。"
+  },
+  "showOriginal": {
+    "message": "显示原文"
+  },
+  "setUpService": {
+    "message": "设置翻译服务"
+  },
+  "pageBlocked": {
+    "message": "Chrome 不允许扩展在这个页面上运行。"
+  },
+  "keyRejected": {
+    "message": "$P1$ 拒绝了这个 API Key（HTTP 401）。点工具栏上的简单翻译图标换一个。",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyRejectedBy": {
+    "message": "被 $P1$ 拒绝。",
+    "placeholders": {
+      "p1": {
+        "content": "$1"
+      }
+    }
+  },
+  "keyNone": {
+    "message": "未设置"
+  },
+  "allSettings": {
+    "message": "全部设置"
+  },
+  "setShortcut": {
+    "message": "设置快捷键"
   }
 }

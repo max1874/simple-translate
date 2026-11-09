@@ -7,6 +7,6 @@ version=$(node -p "require('./manifest.json').version")
 out="dist/plain-translate-$version.zip"
 mkdir -p dist
 rm -f "$out"
-zip -qr "$out" manifest.json LICENSE _locales icons/*.png ./*.js ./*.css options.html -x '*.DS_Store'
+zip -qr "$out" manifest.json LICENSE _locales icons/*.png ./*.js ./*.css options.html popup.html -x '*.DS_Store'
 echo "$out"
 unzip -l "$out" | tail -1
