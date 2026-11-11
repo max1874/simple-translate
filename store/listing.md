@@ -129,4 +129,4 @@ Certify all three:
 
 The dashboard's "Test instructions" page, "其他说明" field, at most 500 characters:
 
-Needs an API key for an OpenAI-compatible LLM service; no account with the developer. Click the toolbar icon, then Set up a translation service: pick OpenRouter, paste a key, allow openrouter.ai, press Test. On an English article (en.wikipedia.org) click the icon, then Translate this page, or press Alt+A: translations appear under paragraphs. YouTube: turn on "YouTube bilingual subtitles" in settings, allow youtube.com, open youtube.com/watch?v=UF8uR6Z6KLc and click the three-bar button left of CC.
+Needs an API key for an OpenAI-compatible LLM service; no account with the developer. Click the toolbar icon, then Set up a translation service: pick OpenRouter, paste a key, allow openrouter.ai, press Test. On en.wikipedia.org click the icon, then Translate this page, or press Alt+A: translations appear under paragraphs. YouTube: turn on "YouTube bilingual subtitles" in settings, allow youtube.com, open youtube.com/watch?v=UF8uR6Z6KLc and click the three-bar button left of CC.
